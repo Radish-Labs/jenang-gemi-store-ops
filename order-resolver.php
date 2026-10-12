@@ -418,13 +418,30 @@ function jg_store_ops_order_resolver_find_website(string $orderId): ?array
     }
 
     if (!is_array($row)) {
-        return null;
+        // A direct order still queued in the Executive Dashboard was never sent
+        // here, but its invoice can already be printed.
+        if (!str_starts_with(jg_store_ops_order_resolver_id_key($orderId), 'WAEXEC-')) {
+            return null;
+        }
+        try {
+            return jg_store_ops_order_resolver_order_from_feed_order(jg_store_ops_whatsapp_executive_order($orderId), 'whatsapp');
+        } catch (Throwable) {
+            return null;
+        }
     }
     $payload = json_decode((string) ($row['payload_json'] ?? ''), true);
     if (!is_array($payload)) {
         $payload = [];
     }
-    if (($row['source_platform'] ?? '') === 'whatsapp') {
+    if (($row['source_platform'] ?? '') === 'whatsapp' && strtoupper((string) ($row['status'] ?? '')) === 'QUEUED') {
+        // A recalled order can change in the Executive queue, so the copy saved
+        // when it was first sent may be out of date.
+        try {
+            $payload = jg_store_ops_whatsapp_executive_order((string) $row['order_id']);
+        } catch (Throwable) {
+            // Preserve the locally saved order when the Executive Dashboard is temporarily unavailable.
+        }
+    } elseif (($row['source_platform'] ?? '') === 'whatsapp') {
         $savedTotal = jg_store_ops_order_resolver_money(
             $payload['revenueTotal'] ?? $payload['merchandise_total'] ?? $payload['total'] ?? 0
         );
@@ -845,6 +862,12 @@ function jg_store_ops_order_resolver_shipping_label(array $order): array
     $available = $supported;
     $availabilitySource = $supported ? 'source' : 'unavailable';
     $unavailableReason = '';
+    if ($platform === 'whatsapp' && strtoupper($status) === 'QUEUED') {
+        // Queued orders are held back from Store Ops; only their invoice is printable.
+        $available = false;
+        $availabilitySource = 'unavailable';
+        $unavailableReason = 'This order is still queued in the Executive Dashboard and has not been sent to Store Ops.';
+    }
     if (in_array($platform, ['shopee', 'tiktok'], true)) {
         $marketplaceRow = is_array($raw['marketplace_rows'][0] ?? null) ? $raw['marketplace_rows'][0] : [];
         if (array_key_exists('label_reprint_available', $marketplaceRow)) {

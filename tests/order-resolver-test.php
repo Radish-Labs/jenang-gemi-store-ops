@@ -74,6 +74,29 @@ order_resolver_expect(75500.0, $whatsappOrder['revenue']['discount_total'], 'Wha
 order_resolver_expect(17000.0, $whatsappOrder['revenue']['shipping_cost'], 'WhatsApp invoices should preserve shipping.');
 order_resolver_expect(398500.0, $whatsappOrder['revenue']['total'], 'WhatsApp customer totals should include shipping.');
 
+$queuedWhatsappOrder = jg_store_ops_order_resolver_order_from_feed_order([
+    'id' => 'WAEXEC-QUEUED',
+    'platform' => 'whatsapp',
+    'status' => 'QUEUED',
+    'financials' => ['merchandiseSubtotal' => 60000, 'merchandiseTotal' => 60000, 'shippingCost' => 12000, 'customerTotal' => 72000],
+    'items' => [['sku' => '010155002701', 'product_name' => 'ZERO · Syrup · Pistachio', 'quantity' => 1, 'unit_price' => 60000, 'line_total' => 60000]],
+], 'whatsapp');
+order_resolver_expect(72000.0, $queuedWhatsappOrder['revenue']['total'], 'A queued WhatsApp order must print its invoice with the shipping cost included.');
+$queuedLabel = jg_store_ops_order_resolver_shipping_label($queuedWhatsappOrder);
+order_resolver_expect(false, $queuedLabel['available'], 'A queued WhatsApp order must not offer its label in Store Ops before it is sent.');
+order_resolver_expect(true, str_contains($queuedLabel['unavailable_reason'], 'still queued'), 'A queued WhatsApp order must explain why its label is unavailable.');
+$resolverSource = (string) file_get_contents(dirname(__DIR__) . '/order-resolver.php');
+order_resolver_expect(
+    true,
+    str_contains($resolverSource, "'WAEXEC-')") && str_contains($resolverSource, 'jg_store_ops_whatsapp_executive_order($orderId)'),
+    'An Executive WhatsApp order missing from Store Ops must be looked up in the Executive Dashboard for invoice printing.'
+);
+order_resolver_expect(
+    true,
+    str_contains((string) file_get_contents(dirname(__DIR__) . '/website-orders-bootstrap.php'), '/api/whatsapp-orders/?action=store_ops_order&order='),
+    'The single-order lookup must use the token-protected Executive invoice endpoint.'
+);
+
 $tiktokOrder = jg_store_ops_order_resolver_order_from_feed_order([
     'id' => 'TT-ORDER-9',
     'platform' => 'TikTok Shop',

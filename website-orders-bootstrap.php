@@ -584,6 +584,23 @@ function jg_store_ops_whatsapp_feed(): array
     return jg_store_ops_website_request('GET', $base . '/api/whatsapp-orders/?action=feed');
 }
 
+/**
+ * One WhatsApp order as the Executive Dashboard holds it right now. Unlike the
+ * feed, this also answers for an order still queued there.
+ */
+function jg_store_ops_whatsapp_executive_order(string $orderId): array
+{
+    $base = rtrim(jg_store_ops_website_config('JG_EXECUTIVE_DASHBOARD_URL', 'executive_dashboard_url', 'https://admin.jenanggemi.com'), '/');
+    $response = jg_store_ops_website_request(
+        'GET',
+        $base . '/api/whatsapp-orders/?action=store_ops_order&order=' . rawurlencode(trim($orderId))
+    );
+    if (!is_array($response['order'] ?? null)) {
+        throw new RuntimeException('Executive Dashboard did not return this WhatsApp order.');
+    }
+    return $response['order'];
+}
+
 function jg_store_ops_website_verified_payload(array $candidate): array
 {
     $platform = strtolower(trim((string) ($candidate['platform'] ?? '')));
