@@ -63,6 +63,21 @@ try {
             ),
         ]);
     }
+    if ($action === 'recall') {
+        if ($method !== 'POST') {
+            jg_store_ops_website_json(['ok' => false, 'error' => 'Method not allowed.'], 405);
+        }
+        if (strtolower(trim((string) ($body['platform'] ?? ''))) !== 'whatsapp') {
+            throw new InvalidArgumentException('Only WhatsApp orders can be moved back to the queue.');
+        }
+        jg_store_ops_website_json([
+            'ok' => true,
+            'order' => jg_store_ops_whatsapp_recall_unclaimed(
+                $pdo,
+                trim((string) ($body['order_id'] ?? $body['order'] ?? ''))
+            ),
+        ]);
+    }
     if ($action === 'whatsapp_status') {
         if ($method !== 'POST') {
             jg_store_ops_website_json(['ok' => false, 'error' => 'Method not allowed.'], 405);

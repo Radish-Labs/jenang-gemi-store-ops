@@ -640,7 +640,8 @@ function jg_store_ops_website_ingest(PDO $pdo, array $candidate): array
             (source_platform, order_id, payload_json, status, source_created_at, created_at, updated_at)
          VALUES
             (:source_platform, :order_id, :payload_json, "IS_LISTED", :source_created_at, :created_at, :updated_at)
-         ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json), updated_at = VALUES(updated_at)'
+         ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json),
+            status = IF(status = "QUEUED", "IS_LISTED", status), updated_at = VALUES(updated_at)'
     );
     $stmt->execute([
         ':source_platform' => $platform,
@@ -965,7 +966,74 @@ function jg_store_ops_whatsapp_cancel_unclaimed(
     }
 }
 
-/** @return array{order_id:string,source_status:string,fulfillment_status:string,claimed:bool,processed:bool,cancelled:bool,can_cancel:bool,display_status:string} */
+/**
+ * Pull an untouched WhatsApp order back to the Executive queue. The source row
+ * is kept as QUEUED so the same order can be listed again when it is re-sent.
+ *
+ * @return array{order_id:string,status:string}
+ */
+function jg_store_ops_whatsapp_recall_unclaimed(PDO $pdo, string $orderId): array
+{
+    $orderId = trim($orderId);
+    if ($orderId === '') {
+        throw new InvalidArgumentException('WhatsApp order ID is required to queue it.');
+    }
+
+    $key = [
+        'source_platform' => 'whatsapp',
+        'source_account' => 'whatsapp',
+        'order_id' => $orderId,
+    ];
+    $pdo->beginTransaction();
+    try {
+        jg_store_ops_fulfillment_insert_order_if_missing($pdo, $key);
+        $fulfillment = jg_store_ops_fulfillment_fetch_order($pdo, $key, true);
+        if (!is_array($fulfillment)) {
+            throw new RuntimeException('Unable to check whether this WhatsApp order has been claimed.');
+        }
+        $sourceStmt = $pdo->prepare(
+            'SELECT status
+             FROM store_ops_website_orders
+             WHERE source_platform = "whatsapp" AND order_id = :order_id
+             LIMIT 1 FOR UPDATE'
+        );
+        $sourceStmt->execute([':order_id' => $orderId]);
+        $sourceStatus = strtoupper(trim((string) $sourceStmt->fetchColumn()));
+        if ($sourceStatus === '') {
+            throw new RuntimeException('WhatsApp order is missing from Store Ops.');
+        }
+        if ($sourceStatus !== 'QUEUED') {
+            $state = jg_store_ops_whatsapp_cancellation_state_from_order($orderId, $sourceStatus, $fulfillment);
+            if (!$state['can_queue']) {
+                throw new RuntimeException(!empty($state['label_printed']) && $state['can_cancel']
+                    ? 'Store Ops already printed the label for this WhatsApp order, so it cannot be moved back to the queue.'
+                    : 'This WhatsApp order has already been claimed or processed in Store Ops and cannot be moved back to the queue.');
+            }
+            $pdo->prepare(
+                'UPDATE store_ops_website_orders
+                 SET status = "QUEUED", updated_at = :updated_at
+                 WHERE source_platform = "whatsapp" AND order_id = :order_id'
+            )->execute([':updated_at' => jg_store_ops_website_now(), ':order_id' => $orderId]);
+            jg_store_ops_fulfillment_log_event(
+                $pdo,
+                $key,
+                'recall_to_queue',
+                'executive-dashboard',
+                'Executive Dashboard',
+                ['message' => 'Moved back to the Executive queue before the order was claimed.']
+            );
+        }
+        $pdo->commit();
+        return ['order_id' => $orderId, 'status' => 'QUEUED'];
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
+}
+
+/** @return array{order_id:string,source_status:string,fulfillment_status:string,claimed:bool,processed:bool,cancelled:bool,can_cancel:bool,label_printed:bool,can_queue:bool,display_status:string} */
 function jg_store_ops_whatsapp_cancellation_state(PDO $pdo, string $orderId): array
 {
     $orderId = trim($orderId);
@@ -1002,6 +1070,7 @@ function jg_store_ops_whatsapp_cancellation_state_from_order(string $orderId, st
     $processed = !$legacyRemoval && $fulfillmentStatus === 'FULFILLED';
     $claimed = !$cancelled && !$processed && ($claimedBy !== '' || $fulfillmentStatus !== 'UNCLAIMED');
     $canCancel = !$cancelled && !$claimed && !$processed && in_array($sourceStatus, ['IS_LISTED', 'IS_BEING_FULFILLED'], true);
+    $labelPrinted = trim((string) ($fulfillment['label_printed_at'] ?? '')) !== '';
     $displayStatus = $cancelled
         ? 'CANCELLED'
         : ($processed ? 'FULFILLED' : ($claimed ? 'IS_BEING_FULFILLED' : ($canCancel ? 'IS_LISTED' : $sourceStatus)));
@@ -1013,6 +1082,8 @@ function jg_store_ops_whatsapp_cancellation_state_from_order(string $orderId, st
         'processed' => $processed,
         'cancelled' => $cancelled,
         'can_cancel' => $canCancel,
+        'label_printed' => $labelPrinted,
+        'can_queue' => $canCancel && !$labelPrinted,
         'display_status' => $displayStatus,
     ];
 }

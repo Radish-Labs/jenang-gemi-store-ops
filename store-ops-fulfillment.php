@@ -514,6 +514,16 @@ function jg_store_ops_fulfillment_claim(PDO $pdo, array $key, string $employeeId
                 ? 'This order was cancelled before it could be claimed.'
                 : 'This order is already fulfilled.');
         }
+        if ($key['source_platform'] === 'whatsapp') {
+            $sourceStmt = $pdo->prepare(
+                'SELECT status FROM store_ops_website_orders
+                 WHERE source_platform = "whatsapp" AND order_id = :order_id LIMIT 1'
+            );
+            $sourceStmt->execute([':order_id' => $key['order_id']]);
+            if (strtoupper(trim((string) $sourceStmt->fetchColumn())) === 'QUEUED') {
+                throw new RuntimeException('This order was moved back to the Executive queue. Refresh the board.');
+            }
+        }
 
         $now = jg_store_ops_fulfillment_now();
         $stmt = $pdo->prepare(

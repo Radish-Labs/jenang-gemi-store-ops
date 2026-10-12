@@ -243,3 +243,76 @@ foreach (['FULFILLED', 'REMOVED', 'CANCELLED'] as $sourceStatus) {
     $state = jg_store_ops_whatsapp_cancellation_state_from_order('terminal-direct', $sourceStatus, ['status' => 'UNCLAIMED']);
     website_ops_expect(false, $state['can_cancel'], 'Terminal source orders must not become cancellable.');
 }
+
+$queueable = jg_store_ops_whatsapp_cancellation_state_from_order('queue-direct', 'IS_LISTED', ['status' => 'UNCLAIMED', 'claimed_by' => null, 'label_printed_at' => null]);
+website_ops_expect(true, $queueable['can_queue'], 'An unclaimed, unprinted direct order can be moved back to the Executive queue.');
+$printed = jg_store_ops_whatsapp_cancellation_state_from_order('queue-direct', 'IS_LISTED', ['status' => 'UNCLAIMED', 'claimed_by' => null, 'label_printed_at' => '2026-10-12 03:00:00']);
+website_ops_expect(false, $printed['can_queue'], 'A released order whose label was printed must stay in Store Ops.');
+website_ops_expect(true, $printed['can_cancel'], 'Printing must not change the existing cancellation rule.');
+$claimedQueue = jg_store_ops_whatsapp_cancellation_state_from_order('queue-direct', 'IS_LISTED', ['status' => 'CLAIMED', 'claimed_by' => 'employee']);
+website_ops_expect(false, $claimedQueue['can_queue'], 'A claimed direct order must not be moved back to the Executive queue.');
+$queuedState = jg_store_ops_whatsapp_cancellation_state_from_order('queue-direct', 'QUEUED', ['status' => 'UNCLAIMED', 'claimed_by' => null]);
+website_ops_expect('QUEUED', $queuedState['display_status'], 'A recalled direct order must report as queued.');
+website_ops_expect(false, $queuedState['can_cancel'] || $queuedState['can_queue'], 'A recalled direct order is no longer active in Store Ops.');
+website_ops_expect(
+    true,
+    str_contains($websiteApi, "\$action === 'recall'")
+        && str_contains($websiteApi, 'jg_store_ops_whatsapp_recall_unclaimed')
+        && str_contains($websiteBootstrapSource, 'status = IF(status = "QUEUED", "IS_LISTED", status)'),
+    'The website-order API must recall untouched WhatsApp orders and list them again when re-sent.'
+);
+foreach (['store-ops-fulfillment.php', 'store-ops-fulfillment-runtime.php'] as $fulfillmentFile) {
+    website_ops_expect(
+        true,
+        str_contains((string) file_get_contents(dirname(__DIR__) . '/' . $fulfillmentFile), 'moved back to the Executive queue'),
+        $fulfillmentFile . ' must stop a stale Store Ops client from claiming a recalled order.'
+    );
+}
+
+if (in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+    // The runtime SQL is MySQL; translate only its locking and upsert syntax.
+    $queuePdo = new class('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]) extends PDO {
+        public function prepare(string $query, array $options = []): PDOStatement|false
+        {
+            $query = str_replace(' FOR UPDATE', '', $query);
+            if (str_contains($query, 'ON DUPLICATE KEY UPDATE')) {
+                $query = 'INSERT OR IGNORE' . substr($query, strlen('INSERT'), strpos($query, 'ON DUPLICATE KEY UPDATE') - strlen('INSERT'));
+            }
+            return parent::prepare($query, $options);
+        }
+    };
+    $queuePdo->exec('CREATE TABLE store_ops_website_orders (id INTEGER PRIMARY KEY, source_platform TEXT, order_id TEXT, payload_json TEXT, status TEXT, updated_at TEXT)');
+    $queuePdo->exec('CREATE TABLE store_ops_order_fulfillment_v2 (id INTEGER PRIMARY KEY, source_platform TEXT, source_account TEXT, order_id TEXT, status TEXT, claimed_by TEXT, claimed_at TEXT, last_activity_at TEXT, label_printed_at TEXT, created_at TEXT, updated_at TEXT, UNIQUE (source_platform, source_account, order_id))');
+    $queuePdo->exec('CREATE TABLE store_ops_order_events_v2 (id INTEGER PRIMARY KEY, source_platform TEXT, source_account TEXT, order_id TEXT, event_type TEXT, employee_id TEXT, employee_name TEXT, sku TEXT, quantity REAL, progress_scanned INTEGER, progress_required INTEGER, message TEXT, payload_json TEXT, created_at TEXT)');
+    $seedOrder = static function (string $orderId, string $status, ?string $claimedBy, ?string $printedAt) use ($queuePdo): void {
+        $queuePdo->prepare('INSERT INTO store_ops_website_orders (source_platform, order_id, payload_json, status, updated_at) VALUES ("whatsapp", ?, "{}", "IS_LISTED", "")')->execute([$orderId]);
+        $queuePdo->prepare('INSERT INTO store_ops_order_fulfillment_v2 (source_platform, source_account, order_id, status, claimed_by, label_printed_at, created_at, updated_at) VALUES ("whatsapp", "whatsapp", ?, ?, ?, ?, "", "")')->execute([$orderId, $status, $claimedBy, $printedAt]);
+    };
+    $sourceStatus = static fn (string $orderId): string => (string) $queuePdo->query('SELECT status FROM store_ops_website_orders WHERE order_id = ' . $queuePdo->quote($orderId))->fetchColumn();
+    $seedOrder('WAEXEC-FREE', 'UNCLAIMED', null, null);
+    $seedOrder('WAEXEC-CLAIMED', 'CLAIMED', 'employee', null);
+    $seedOrder('WAEXEC-PRINTED', 'UNCLAIMED', null, '2026-10-12 03:00:00');
+
+    website_ops_expect('QUEUED', jg_store_ops_whatsapp_recall_unclaimed($queuePdo, 'WAEXEC-FREE')['status'], 'Recalling an untouched order must confirm the queued state.');
+    website_ops_expect('QUEUED', $sourceStatus('WAEXEC-FREE'), 'A recalled order must leave the Store Ops Listed board.');
+    website_ops_expect('QUEUED', jg_store_ops_whatsapp_recall_unclaimed($queuePdo, 'WAEXEC-FREE')['status'], 'Recalling twice must be idempotent.');
+    website_ops_expect(1, (int) $queuePdo->query('SELECT COUNT(*) FROM store_ops_order_events_v2 WHERE event_type = "recall_to_queue"')->fetchColumn(), 'A recall must be audited exactly once.');
+    $staleClaimRejected = false;
+    try {
+        jg_store_ops_fulfillment_claim($queuePdo, ['source_platform' => 'whatsapp', 'source_account' => 'whatsapp', 'order_id' => 'WAEXEC-FREE'], 'employee', 'Employee');
+    } catch (RuntimeException $error) {
+        $staleClaimRejected = str_contains($error->getMessage(), 'Executive queue');
+    }
+    website_ops_expect(true, $staleClaimRejected, 'A stale board must not claim a recalled order.');
+    foreach (['WAEXEC-CLAIMED' => 'claimed', 'WAEXEC-PRINTED' => 'printed', 'WAEXEC-MISSING' => 'missing'] as $protectedOrder => $reason) {
+        $rejected = false;
+        try {
+            jg_store_ops_whatsapp_recall_unclaimed($queuePdo, $protectedOrder);
+        } catch (RuntimeException $error) {
+            $rejected = str_contains($error->getMessage(), $reason);
+        }
+        website_ops_expect(true, $rejected, 'Recall must be refused for a ' . $reason . ' order.');
+    }
+    website_ops_expect('IS_LISTED', $sourceStatus('WAEXEC-PRINTED'), 'A refused recall must leave the order listed.');
+    echo "website-orders-queue-test: ok\n";
+}
