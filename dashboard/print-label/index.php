@@ -74,6 +74,11 @@ $printLabelJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/print-label.j
                 <section class="admin-label-print-confirmation" data-print-confirmation aria-live="polite" hidden>
                     <button type="button" class="admin-primary-btn admin-print-success-btn" data-confirm-label-printed>Printed successfully</button>
                 </section>
+                <section class="admin-label-print-done" data-print-done aria-live="polite" hidden>
+                    <strong>Label printed</strong>
+                    <button type="button" class="admin-ghost-btn" data-print-again>Print again</button>
+                </section>
+                <button type="button" class="admin-ghost-btn admin-label-browser-print" data-print-browser-fallback hidden>Use the browser print dialog</button>
             </section>
         </main>
     <?php jg_store_ops_shell_close(); ?>

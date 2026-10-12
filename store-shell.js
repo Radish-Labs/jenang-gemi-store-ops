@@ -422,8 +422,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderScannerSettings();
   };
 
+  const settingsTabTitles = {
+    scanner: 'Scanner setup',
+    printer: 'Label printer'
+  };
+
   const activateSettingsTab = (tab) => {
-    activeSettingsTab = tab === 'scanner' ? 'scanner' : 'scanner';
+    activeSettingsTab = Object.hasOwn(settingsTabTitles, tab) ? tab : 'scanner';
     document.querySelectorAll('[data-settings-tab]').forEach((button) => {
       const isActive = button.dataset.settingsTab === activeSettingsTab;
       button.classList.toggle('is-active', isActive);
@@ -434,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
       panel.classList.toggle('is-active', isActive);
       panel.hidden = !isActive;
     });
-    if (settingsTitle) settingsTitle.textContent = 'Scanner setup';
+    if (settingsTitle) settingsTitle.textContent = settingsTabTitles[activeSettingsTab];
   };
 
   const openSettingsModal = () => {

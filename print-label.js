@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmPrintedButton = document.querySelector('[data-confirm-label-printed]');
   const previewNode = document.querySelector('[data-label-preview]');
   const labelFrame = document.querySelector('[data-label-frame]');
+  const doneNode = document.querySelector('[data-print-done]');
+  const printAgainButton = document.querySelector('[data-print-again]');
+  const browserPrintButton = document.querySelector('[data-print-browser-fallback]');
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -67,6 +70,19 @@ document.addEventListener('DOMContentLoaded', () => {
   let printInProgress = false;
   let labelUrl = '';
   let labelLoaded = false;
+
+  // Stations with the Store Ops print helper print without the browser
+  // dialog and learn from the Windows print queue whether the label went out.
+  const printHelper = window.JGStoreOpsPrintHelper || null;
+  const helperSettings = printHelper ? printHelper.readSettings() : { enabled: false, printer: '', fit: false };
+  const autoPrintedStorageKey = `jg-store-auto-printed:${orderId}`;
+  const printedHoldMs = 3000;
+  let labelBlob = null;
+  let helperAvailable = false;
+  let helperRun = 0;
+  let helperJobId = '';
+  let completionAcknowledged = false;
+  let closeTimer = 0;
 
   const normalizeSourceKey = (value) => String(value || '')
     .trim()
@@ -188,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const submitPrintCompletion = async () => {
     if (!order) throw new Error('Order is missing.');
     const timestamp = new Date().toISOString();
-    const payload = isReprint
+    const payload = (isReprint || completionAcknowledged)
       ? orderActionPayload('reprint_label', { printed_at: timestamp })
       : orderActionPayload('fulfill_order', {
         fulfilled_at: timestamp,
@@ -241,27 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statusNode) statusNode.textContent = status;
   };
 
-  const closeConfirmedPrintTab = async () => {
-    if ((!printInProgress && !labelLoaded) || printClosing) return;
-    printInProgress = true;
-    printClosing = true;
-    resetPrintLifecycle();
-    setConfirmationDisabled(true);
-    setError('');
-    if (statusNode) statusNode.textContent = 'Confirming with Store Ops';
-    try {
-      const serverAcknowledgedAt = await submitPrintCompletion();
-      if (!isReprint) markPrinted(serverAcknowledgedAt);
-    } catch (error) {
-      printClosing = false;
-      printInProgress = true;
-      setConfirmationDisabled(false);
-      if (statusNode) statusNode.textContent = 'Confirmation not sent';
-      setError(`${error instanceof Error ? error.message : 'Store Ops could not register the confirmation.'} This order remains listed on every device; press Printed successfully to retry.`);
-      return;
-    }
-    printInProgress = false;
-    if (statusNode) statusNode.textContent = 'Print confirmed';
+  const leavePrintTab = () => {
     try {
       if (window.opener && !window.opener.closed) window.opener.focus();
     } catch (_error) {
@@ -272,6 +268,31 @@ document.addEventListener('DOMContentLoaded', () => {
       setConfirmationDisabled(false);
       setError('Print confirmed. Your browser prevented automatic closing; you can close this tab.');
     }, 250);
+  };
+
+  const closeConfirmedPrintTab = async () => {
+    if ((!printInProgress && !labelLoaded) || printClosing) return;
+    printInProgress = true;
+    printClosing = true;
+    resetPrintLifecycle();
+    setConfirmationDisabled(true);
+    setError('');
+    if (statusNode) statusNode.textContent = 'Confirming with Store Ops';
+    try {
+      const serverAcknowledgedAt = await submitPrintCompletion();
+      if (!isReprint && !completionAcknowledged) markPrinted(serverAcknowledgedAt);
+      completionAcknowledged = true;
+    } catch (error) {
+      printClosing = false;
+      printInProgress = true;
+      setConfirmationDisabled(false);
+      if (statusNode) statusNode.textContent = 'Confirmation not sent';
+      setError(`${error instanceof Error ? error.message : 'Store Ops could not register the confirmation.'} This order remains listed on every device; press Printed successfully to retry.`);
+      return;
+    }
+    printInProgress = false;
+    if (statusNode) statusNode.textContent = 'Print confirmed';
+    leavePrintTab();
   };
 
   const armAutomaticPrintConfirmation = (frameWindow) => {
@@ -392,6 +413,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const printLabel = () => {
     if (!order || !labelLoaded || printClosing) return;
+    if (helperAvailable) {
+      requestHelperPrint();
+      return;
+    }
     if (printInProgress) {
       retryPrintDialog();
       return;
@@ -412,6 +437,149 @@ document.addEventListener('DOMContentLoaded', () => {
     printClosing = false;
     if (!openPrintDialog()) return;
     showPrintConfirmationFallback();
+  };
+
+  const hasAutoPrinted = () => {
+    try {
+      return window.sessionStorage.getItem(autoPrintedStorageKey) === '1';
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  const rememberAutoPrinted = () => {
+    try {
+      window.sessionStorage.setItem(autoPrintedStorageKey, '1');
+    } catch (_error) {
+      // A reload may then print this label a second time.
+    }
+  };
+
+  const offerManualConfirmation = (status) => {
+    printInProgress = true;
+    showPrintConfirmationFallback(status);
+  };
+
+  const finishHelperPrint = async () => {
+    if (statusNode) statusNode.textContent = 'Confirming with Store Ops';
+    try {
+      const serverAcknowledgedAt = await submitPrintCompletion();
+      if (!isReprint && !completionAcknowledged) markPrinted(serverAcknowledgedAt);
+      completionAcknowledged = true;
+    } catch (error) {
+      // Only the first completion matters; a reprint is just a history entry.
+      if (!isReprint && !completionAcknowledged) {
+        setError(`${error instanceof Error ? error.message : 'Store Ops could not register the confirmation.'} The label printed, but this order remains listed on every device; press Printed successfully to retry.`);
+        offerManualConfirmation('Confirmation not sent');
+        return;
+      }
+    }
+    if (statusNode) statusNode.textContent = 'Print confirmed';
+    if (doneNode) {
+      doneNode.hidden = false;
+      window.requestAnimationFrame(() => {
+        doneNode.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'center' });
+      });
+    }
+    // Leave a moment to catch a blank or crooked label before the tab closes.
+    closeTimer = window.setTimeout(leavePrintTab, printedHoldMs);
+  };
+
+  const printThroughHelper = async () => {
+    if (!printHelper || !labelBlob || printClosing) return;
+    helperRun += 1;
+    const run = helperRun;
+    window.clearTimeout(closeTimer);
+    resetPrintLifecycle();
+    printInProgress = false;
+    if (confirmationNode) confirmationNode.hidden = true;
+    if (doneNode) doneNode.hidden = true;
+    if (browserPrintButton) browserPrintButton.hidden = true;
+    setPrintEnabled(false);
+    setError('');
+    if (statusNode) statusNode.textContent = 'Printing';
+
+    let outcome;
+    try {
+      const sent = await printHelper.print(labelBlob, helperSettings);
+      if (run !== helperRun) return;
+      helperJobId = sent.id;
+      rememberAutoPrinted();
+      outcome = await printHelper.watchJob(sent.id, {
+        onUpdate: (view) => {
+          if (run !== helperRun) return;
+          if (view.state === 'attention') {
+            if (statusNode) statusNode.textContent = 'Printer needs attention';
+            setError(`${printHelper.describeReason(view.reason)} The label prints as soon as that is fixed. Press Print to cancel it and send a new one.`);
+            setPrintEnabled(true);
+          } else {
+            if (statusNode) statusNode.textContent = 'Printing';
+            setError('');
+            setPrintEnabled(false);
+          }
+        }
+      });
+    } catch (error) {
+      outcome = { state: error.unreachable ? 'unreachable' : 'failed', reason: error.reason || '' };
+    }
+    if (run !== helperRun) return;
+    helperJobId = '';
+
+    if (outcome.state === 'done') {
+      setError('');
+      await finishHelperPrint();
+      return;
+    }
+    setPrintEnabled(true);
+    if (outcome.state === 'unreachable') {
+      helperAvailable = false;
+      if (statusNode) statusNode.textContent = 'Print helper not running';
+      setError('The Store Ops print helper is not responding on this computer. Press Print to use the browser print dialog.');
+      return;
+    }
+    if (outcome.state === 'unknown') {
+      setError('Store Ops could not confirm that the label printed. If it did, press Printed successfully; otherwise press Print to send it again.');
+      offerManualConfirmation('Check the printer');
+      return;
+    }
+    if (statusNode) statusNode.textContent = 'Label not printed';
+    setError(`${printHelper.describeReason(outcome.reason)} Fix the printer, then press Print to try again.`);
+    if (browserPrintButton) browserPrintButton.hidden = false;
+  };
+
+  const requestHelperPrint = () => {
+    const waitingJobId = helperJobId;
+    if (!waitingJobId) {
+      printThroughHelper();
+      return;
+    }
+    // Replace a label stuck behind a printer problem instead of queueing a second one.
+    helperJobId = '';
+    helperRun += 1;
+    printHelper.cancel(waitingJobId).catch(() => {}).then(printThroughHelper);
+  };
+
+  const startHelperMode = async () => {
+    if (!printHelper || !helperSettings.enabled || !labelBlob) return;
+    setPrintEnabled(false);
+    try {
+      await printHelper.status();
+      helperAvailable = true;
+    } catch (_error) {
+      helperAvailable = false;
+    }
+    setPrintEnabled(true);
+    if (!helperAvailable) {
+      setError('The Store Ops print helper is not running on this computer, so Print opens the browser print dialog.');
+      return;
+    }
+    if (isReprint) return;
+    if (hasAutoPrinted()) {
+      setError('This label was already sent to the printer. Press Printed successfully if it came out, or Print to send it again.');
+      offerManualConfirmation('Confirm print');
+      return;
+    }
+    printThroughHelper();
   };
 
   const platformLabel = (value) => {
@@ -466,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const blob = await response.blob();
+    labelBlob = blob;
     if (labelUrl) URL.revokeObjectURL(labelUrl);
     labelUrl = URL.createObjectURL(blob);
     if (labelFrame instanceof HTMLIFrameElement) {
@@ -474,12 +643,14 @@ document.addEventListener('DOMContentLoaded', () => {
         labelLoaded = true;
         setPrintEnabled(true);
         if (statusNode) statusNode.textContent = 'Ready';
+        startHelperMode();
       }, { once: true });
       labelFrame.src = labelUrl;
     } else {
       labelLoaded = true;
       setPrintEnabled(true);
       if (statusNode) statusNode.textContent = 'Ready';
+      startHelperMode();
     }
     if (previewNode) previewNode.hidden = false;
   };
@@ -502,6 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.addEventListener('beforeunload', () => {
+    window.clearTimeout(closeTimer);
     resetPrintLifecycle();
     if (labelUrl) URL.revokeObjectURL(labelUrl);
   });
@@ -515,4 +687,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   confirmPrintedButton?.addEventListener('click', closeConfirmedPrintTab);
+
+  printAgainButton?.addEventListener('click', () => {
+    window.clearTimeout(closeTimer);
+    requestHelperPrint();
+  });
+
+  browserPrintButton?.addEventListener('click', () => {
+    helperAvailable = false;
+    browserPrintButton.hidden = true;
+    setError('');
+    printLabel();
+  });
 });

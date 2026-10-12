@@ -1977,7 +1977,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsTabTitles = {
     scanner: 'Scanner setup',
     theme: 'Theme',
-    platforms: 'Platform colors'
+    platforms: 'Platform colors',
+    printer: 'Label printer'
   };
 
   const activateSettingsTab = (tab) => {

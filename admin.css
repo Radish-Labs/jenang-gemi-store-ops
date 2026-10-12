@@ -3465,6 +3465,91 @@ input[type='radio'] {
   box-shadow: 0 12px 28px rgba(220, 38, 38, 0.32);
 }
 
+.admin-label-print-done {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  scroll-margin-block: 24px;
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.admin-label-print-done[hidden],
+.admin-label-browser-print[hidden] {
+  display: none;
+}
+
+.admin-label-print-done strong {
+  color: var(--admin-text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+}
+
+.admin-label-print-done button {
+  min-width: min(100%, 260px);
+  min-height: 46px;
+}
+
+.admin-label-browser-print {
+  justify-self: center;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.admin-print-helper-options {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.admin-print-helper-options[hidden] {
+  display: none;
+}
+
+.admin-print-helper-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.admin-print-helper-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: #22c55e;
+}
+
+.admin-print-helper-toggle span,
+.admin-print-helper-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-print-helper-toggle strong,
+.admin-print-helper-field > span {
+  color: var(--admin-text);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.admin-print-helper-toggle small {
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-scanner-health-actions a.admin-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
 .admin-label-sheet {
   display: grid;
   align-content: space-between;

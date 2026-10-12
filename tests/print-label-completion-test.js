@@ -13,7 +13,9 @@ const fulfillmentRuntime = fs.readFileSync(path.join(root, 'store-ops-fulfillmen
 const fulfillmentSource = fs.readFileSync(path.join(root, 'store-ops-fulfillment.php'), 'utf8');
 
 assert.match(markup, /data-label-preview[\s\S]*data-print-confirmation[\s\S]*admin-print-success-btn[^>]*data-confirm-label-printed>Printed successfully<\/button>/, 'the single red print confirmation button should appear below the label preview');
-assert.doesNotMatch(markup, /data-print-again|Printed successfully — close tab|Print confirmation/, 'the confirmation area should contain no duplicate print action or extra copy');
+const confirmationMarkup = markup.match(/<section[^>]*data-print-confirmation[\s\S]*?<\/section>/);
+assert.ok(confirmationMarkup, 'the manual confirmation area should be present');
+assert.doesNotMatch(confirmationMarkup[0], /data-print-again|Printed successfully — close tab|Print confirmation/, 'the confirmation area should contain no duplicate print action or extra copy');
 assert.match(markup, /admin-label-frame-shell[\s\S]*data-label-frame[\s\S]*data-print-shopee-label/, 'the PDF viewer print icon should be covered by the Store Ops print action');
 assert.match(ordersApi, /function jg_store_ops_orders_partner_status_is_visible[\s\S]*?'IS_BEING_FULFILLED'/, 'accepted Partner orders should remain in the API queue');
 assert.match(legacyOrdersApi, /function jg_store_ops_orders_partner_status_is_visible[\s\S]*?'IS_BEING_FULFILLED'/, 'accepted Partner orders should remain in the compatible API queue');
@@ -45,7 +47,8 @@ assert.doesNotMatch(styles, /\.admin-store-nav-item\.admin-reprint-trigger/, 'th
 assert.match(script, /confirmPrintedButton\?\.addEventListener\('click', closeConfirmedPrintTab\)/, 'manual fallback confirmation should close the tab');
 const closeFlow = script.match(/const closeConfirmedPrintTab = async \(\) => \{[\s\S]*?\n  \};\n\n  const armAutomaticPrintConfirmation/);
 assert.ok(closeFlow, 'the direct confirmation-close flow should be present');
-assert.match(closeFlow[0], /await submitPrintCompletion\(\)[\s\S]*markPrinted\(serverAcknowledgedAt\);[\s\S]*window\.close\(\);/, 'the red confirmation button must wait for shared fulfillment acknowledgement before removing the card and closing its tab');
+assert.match(closeFlow[0], /await submitPrintCompletion\(\)[\s\S]*markPrinted\(serverAcknowledgedAt\);[\s\S]*leavePrintTab\(\);/, 'the red confirmation button must wait for shared fulfillment acknowledgement before removing the card and closing its tab');
+assert.match(script, /const leavePrintTab = \(\) => \{[\s\S]*?window\.close\(\);[\s\S]*?\n  \};/, 'leaving the print tab should close it');
 assert.match(closeFlow[0], /catch \(error\)[\s\S]*This order remains listed on every device; press Printed successfully to retry\./, 'a rejected completion must stay visible and offer a clear retry');
 assert.match(closeFlow[0], /!printInProgress && !labelLoaded/, 'a loaded label should remain confirmable after refreshing an older print tab');
 const loadFlow = script.match(/const loadLabel = async \(\) => \{[\s\S]*?\n  \};\n\n  if \(orderIdNode\)/);
@@ -57,7 +60,7 @@ assert.match(script, /if \(!response\.ok \|\| responsePayload\.ok === false\)[\s
 assert.match(storeHome, /const flushPendingOrderCompletions = \(\) => \{[\s\S]*fetch\(ordersEndpoint[\s\S]*if \(!response\.ok \|\| responsePayload\.ok === false\) continue;[\s\S]*removeAcknowledgedCompletion/, 'the dashboard must retain completion actions until the server acknowledges them');
 assert.match(script, /orderActionPayload\('fulfill_order',[\s\S]*fulfilled_at:[\s\S]*items: completionItems\(\)[\s\S]*customer_name:/, 'completion must send every ordered product and the customer identifier');
 assert.match(fulfillmentRuntime, /customer_name VARCHAR\(160\)[\s\S]*function jg_store_ops_fulfillment_mark_fulfilled[\s\S]*customer_name = CASE/, 'completion must persist the customer identifier with the processed order');
-assert.doesNotMatch(script, /beginPrintFinalization|markPrintedOnServer|markFulfilledOnServer/, 'there must be no second automatic completion path outside the red button');
+assert.doesNotMatch(script, /beginPrintFinalization|markPrintedOnServer|markFulfilledOnServer/, 'the retired automatic finalization helpers must not return');
 assert.match(fulfillmentRuntime, /function jg_store_ops_fulfillment_mark_label_printed[\s\S]*status[\s\S]*FULFILLED[\s\S]*return \$row/, 'repeated label confirmation should accept an already fulfilled order');
 assert.equal(fulfillmentSource, fulfillmentRuntime, 'the source and deployed fulfillment runtimes should stay synchronized');
 assert.match(ordersApi, /\$alreadyFulfilled[\s\S]*!\$alreadyFulfilled && \$key\['source_platform'\] === 'partner'[\s\S]*!\$alreadyFulfilled && in_array\(\$key\['source_platform'\], \['shopee', 'tiktok'\]/, 'idempotent confirmation must not regress an already fulfilled upstream order');

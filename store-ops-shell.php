@@ -89,6 +89,7 @@ function jg_store_ops_shell_employee(): array
 function jg_store_ops_shell_open(array $options = []): void
 {
     $rootPrefix = (string) ($options['root_prefix'] ?? '../');
+    $GLOBALS['jg_store_ops_shell_root_prefix'] = $rootPrefix;
     $active = (string) ($options['active'] ?? '');
     $title = (string) ($options['title'] ?? 'Store Ops');
     $eyebrow = (string) ($options['eyebrow'] ?? 'Store Ops');
@@ -109,7 +110,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.04.51</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.00</div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -208,6 +209,72 @@ function jg_store_ops_shell_open(array $options = []): void
     <?php
 }
 
+function jg_store_ops_print_helper_settings_tab(): void
+{
+    ?>
+                        <button type="button" class="admin-settings-tab" data-settings-tab="printer" aria-selected="false">
+                            <span class="admin-settings-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg></span>
+                            <span><strong>Label printer</strong><small>Automatic printing</small></span>
+                            <svg class="admin-settings-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+    <?php
+}
+
+function jg_store_ops_print_helper_settings_panel(string $rootPrefix): void
+{
+    $printHelperJsVersion = (string) @filemtime(__DIR__ . '/print-helper.js');
+    ?>
+                        <section class="admin-settings-panel" data-settings-panel="printer" data-print-helper-panel hidden>
+                            <div class="admin-settings-section-head">
+                                <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg></span>
+                                <div>
+                                    <h4>Automatic label printing</h4>
+                                    <p>With the print helper installed on this Windows computer, a label prints as soon as the last item is scanned and the order completes once the printer has taken it.</p>
+                                </div>
+                            </div>
+
+                            <div class="admin-scanner-health-card" data-print-helper-health>
+                                <i aria-hidden="true"></i>
+                                <div>
+                                    <strong data-print-helper-title>Print helper not checked</strong>
+                                    <span data-print-helper-detail>Press Recheck to look for the helper on this computer.</span>
+                                </div>
+                            </div>
+
+                            <div class="admin-print-helper-options" data-print-helper-options hidden>
+                                <label class="admin-print-helper-toggle">
+                                    <input type="checkbox" data-print-helper-enabled>
+                                    <span><strong>Print labels automatically on this computer</strong><small>Turn off to go back to the browser print dialog.</small></span>
+                                </label>
+                                <label class="admin-print-helper-field">
+                                    <span>Label printer</span>
+                                    <select class="admin-settings-input" data-print-helper-printer></select>
+                                </label>
+                                <label class="admin-print-helper-toggle">
+                                    <input type="checkbox" data-print-helper-fit>
+                                    <span><strong>Scale the label to fill the paper</strong><small>Leave off when labels already print at the right size.</small></span>
+                                </label>
+                            </div>
+
+                            <div class="admin-scanner-health-actions">
+                                <a class="admin-ghost-btn" href="<?php echo htmlspecialchars($rootPrefix . 'api/print-helper/', ENT_QUOTES, 'UTF-8'); ?>" download>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+                                    Download helper
+                                </a>
+                                <button type="button" class="admin-ghost-btn" data-print-helper-check>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+                                    Recheck
+                                </button>
+                                <button type="button" class="admin-primary-btn" data-print-helper-test disabled>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg>
+                                    Test print
+                                </button>
+                            </div>
+                            <script src="<?php echo htmlspecialchars($rootPrefix . 'print-helper.js?v=' . urlencode($printHelperJsVersion ?: '1'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+                        </section>
+    <?php
+}
+
 function jg_store_ops_shell_close(): void
 {
     ?>
@@ -233,6 +300,7 @@ function jg_store_ops_shell_close(): void
                             <span><strong>Scanner</strong><small>USB-COM setup</small></span>
                             <svg class="admin-settings-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                         </button>
+                        <?php jg_store_ops_print_helper_settings_tab(); ?>
                     </nav>
 
                     <div class="admin-settings-scanner-summary">
@@ -301,6 +369,7 @@ function jg_store_ops_shell_close(): void
                                 </button>
                             </div>
                         </section>
+                        <?php jg_store_ops_print_helper_settings_panel((string) ($GLOBALS['jg_store_ops_shell_root_prefix'] ?? '../')); ?>
                     </div>
                 </main>
             </section>

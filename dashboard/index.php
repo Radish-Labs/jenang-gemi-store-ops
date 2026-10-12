@@ -35,7 +35,7 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
     <link rel="stylesheet" href="../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard is-store-home">
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.04.51</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.00</div>
     <div
         class="admin-app admin-store-home"
         data-store-home
@@ -347,6 +347,7 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
                             <span><strong>Platforms</strong><small>Order color codes</small></span>
                             <svg class="admin-settings-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                         </button>
+                        <?php jg_store_ops_print_helper_settings_tab(); ?>
                     </nav>
 
                     <div class="admin-settings-scanner-summary">
@@ -422,6 +423,8 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
                                 </button>
                             </div>
                         </section>
+
+                        <?php jg_store_ops_print_helper_settings_panel('../'); ?>
 
                         <section class="admin-settings-panel" data-settings-panel="theme" hidden>
                             <div class="admin-theme-grid" aria-label="Dashboard theme">
