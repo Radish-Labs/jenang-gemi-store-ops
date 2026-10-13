@@ -84,6 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let completionAcknowledged = false;
   let closeTimer = 0;
 
+  // Marketplace labels arrive at label size. Direct, website and partner
+  // labels are courier PDFs uploaded at whatever page size the courier uses,
+  // so printing them at actual size can run off the label.
+  const uploadedLabelPlatforms = ['whatsapp', 'zero_website', 'jenang_gemi_website', 'partner'];
+  const hasUploadedLabel = uploadedLabelPlatforms.includes(String(order?.platform || '').trim().toLowerCase())
+    || /^(WAEXEC|ZEROWEB|JGWEB|PARTNER)-/i.test(orderId);
+  const helperPrintOptions = () => ({
+    printer: helperSettings.printer,
+    fit: helperSettings.fit || hasUploadedLabel
+  });
+
   const normalizeSourceKey = (value) => String(value || '')
     .trim()
     .toLowerCase()
@@ -501,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let outcome;
     try {
-      const sent = await printHelper.print(labelBlob, helperSettings);
+      const sent = await printHelper.print(labelBlob, helperPrintOptions());
       if (run !== helperRun) return;
       helperJobId = sent.id;
       rememberAutoPrinted();

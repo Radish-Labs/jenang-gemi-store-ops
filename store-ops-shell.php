@@ -110,7 +110,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.01</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.02</div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -252,7 +252,7 @@ function jg_store_ops_print_helper_settings_panel(string $rootPrefix): void
                                 </label>
                                 <label class="admin-print-helper-toggle">
                                     <input type="checkbox" data-print-helper-fit>
-                                    <span><strong>Scale the label to fill the paper</strong><small>Leave off when labels already print at the right size.</small></span>
+                                    <span><strong>Scale the label to fill the paper</strong><small>Leave off when labels already print at the right size. WhatsApp, website and partner labels are always scaled to fit.</small></span>
                                 </label>
                             </div>
 
