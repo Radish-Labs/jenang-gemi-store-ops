@@ -12,6 +12,7 @@ if (!jg_admin_is_authenticated()) {
 $adminCssVersion = (string) @filemtime(dirname(__DIR__, 2) . '/admin.css');
 $storeShellJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/store-shell.js');
 $printLabelJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/print-label.js');
+$labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-reshape.js');
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -83,6 +84,8 @@ $printLabelJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/print-label.j
         </main>
     <?php jg_store_ops_shell_close(); ?>
     <script src="../../store-shell.js?v=<?php echo urlencode($storeShellJsVersion ?: '1'); ?>" defer></script>
+    <script src="../../assets/vendor/pdf-lib.min.js?v=1.17.1" defer></script>
+    <script src="../../label-reshape.js?v=<?php echo urlencode($labelReshapeJsVersion ?: '1'); ?>" defer></script>
     <script src="../../print-label.js?v=<?php echo urlencode($printLabelJsVersion ?: '1'); ?>" defer></script>
 </body>
 </html>

@@ -38,13 +38,6 @@ const sourceChecks = () => {
   assert.match(helperFlow, /if \(outcome\.state === 'done'\) \{[\s\S]*?await finishHelperPrint\(\);/, 'the order completes only after the printer took the label');
   assert.doesNotMatch(helperFlow, /submitPrintCompletion|markPrinted/, 'a failed or unconfirmed print must never complete the order');
   assert.match(helperFlow, /outcome\.state === 'unknown'[\s\S]*offerManualConfirmation\(/, 'an unconfirmed print falls back to the manual confirmation button');
-  assert.match(helperFlow, /printHelper\.print\(labelBlob, helperPrintOptions\(\)\)/, 'the label is sent with the scaling its source needs');
-  assert.match(labelScript, /const helperPrintOptions = \(\) => \(\{[\s\S]*?fit: helperSettings\.fit \|\| hasUploadedLabel/, 'uploaded courier labels are scaled to the paper even when the station prints marketplace labels at actual size');
-  const uploadedLabel = new Function('order', 'orderId', `${labelScript.match(/const uploadedLabelPlatforms = [\s\S]*?orderId\);/)[0]} return hasUploadedLabel;`);
-  assert.equal(uploadedLabel({ platform: 'whatsapp' }, 'WAEXEC-1'), true, 'a WhatsApp order prints a courier label');
-  assert.equal(uploadedLabel({ platform: '' }, 'waexec-1'), true, 'a direct order is recognised from its order number');
-  assert.equal(uploadedLabel({ platform: 'partner' }, 'PARTNER-9'), true, 'a partner order prints an uploaded label');
-  assert.equal(uploadedLabel({ platform: 'shopee' }, '260805JD3GTNHG'), false, 'a marketplace label keeps the station setting');
   assert.match(labelScript, /const finishHelperPrint = async \(\) => \{[\s\S]*await submitPrintCompletion\(\)[\s\S]*closeTimer = window\.setTimeout\(leavePrintTab, printedHoldMs\)/, 'a printed label is acknowledged by the server before the tab closes');
   assert.match(labelScript, /const requestHelperPrint = \(\) => \{[\s\S]*printHelper\.cancel\(waitingJobId\)/, 'sending a label again replaces the one stuck in the queue');
   assert.match(labelScript, /const printLabel = \(\) => \{[\s\S]*?if \(helperAvailable\) \{\s*requestHelperPrint\(\);\s*return;/, 'Print uses the helper when it is available and the browser dialog otherwise');

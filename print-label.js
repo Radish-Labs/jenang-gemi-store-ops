@@ -86,14 +86,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Marketplace labels arrive at label size. Direct, website and partner
   // labels are courier PDFs uploaded at whatever page size the courier uses,
-  // so printing them at actual size can run off the label.
+  // so they are redrawn onto a label-sized page before they print.
   const uploadedLabelPlatforms = ['whatsapp', 'zero_website', 'jenang_gemi_website', 'partner'];
   const hasUploadedLabel = uploadedLabelPlatforms.includes(String(order?.platform || '').trim().toLowerCase())
     || /^(WAEXEC|ZEROWEB|JGWEB|PARTNER)-/i.test(orderId);
-  const helperPrintOptions = () => ({
-    printer: helperSettings.printer,
-    fit: helperSettings.fit || hasUploadedLabel
-  });
+  const labelSizedBlob = async (blob) => {
+    const labelReshape = window.JGStoreOpsLabelReshape || null;
+    if (!hasUploadedLabel || !labelReshape) return blob;
+    try {
+      const reshaped = await labelReshape.reshape(await blob.arrayBuffer());
+      return reshaped ? new Blob([reshaped], { type: 'application/pdf' }) : blob;
+    } catch (_error) {
+      // An unreadable PDF still prints as it was uploaded.
+      return blob;
+    }
+  };
 
   const normalizeSourceKey = (value) => String(value || '')
     .trim()
@@ -512,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let outcome;
     try {
-      const sent = await printHelper.print(labelBlob, helperPrintOptions());
+      const sent = await printHelper.print(labelBlob, helperSettings);
       if (run !== helperRun) return;
       helperJobId = sent.id;
       rememberAutoPrinted();
@@ -644,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
       throw new Error(message);
     }
 
-    const blob = await response.blob();
+    const blob = await labelSizedBlob(await response.blob());
     labelBlob = blob;
     if (labelUrl) URL.revokeObjectURL(labelUrl);
     labelUrl = URL.createObjectURL(blob);
