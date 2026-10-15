@@ -138,18 +138,6 @@ $walkInsJsVersion = (string) @filemtime(dirname(__DIR__) . '/walk-ins.js');
                             <strong data-walkins-summary-customer>Walk-in customer</strong>
                             <small data-walkins-summary-contact>No phone / No email</small>
                         </div>
-                        <div class="admin-walkins-discount-box">
-                            <span>Order discount</span>
-                            <div class="admin-walkins-discount-modes" role="group" aria-label="Discount type">
-                                <button type="button" data-walkins-discount-mode="sale_price">Sale price</button>
-                                <button type="button" class="is-active" data-walkins-discount-mode="percentage">Percentage</button>
-                            </div>
-                            <label class="admin-walkins-discount-input">
-                                <span data-walkins-discount-prefix>%</span>
-                                <input type="number" min="0" max="100" step="0.01" inputmode="decimal" placeholder="0" data-walkins-discount-value>
-                            </label>
-                            <small data-walkins-discount-help>Percentage off the merchandise total.</small>
-                        </div>
                         <dl class="admin-walkins-total-list">
                             <div><dt>Subtotal</dt><dd data-walkins-subtotal>Rp0</dd></div>
                             <div><dt>Discount</dt><dd data-walkins-discount>Rp0</dd></div>

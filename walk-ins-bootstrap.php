@@ -604,10 +604,13 @@ function jg_store_ops_walkins_complete_sale(PDO $pdo, array $payload, string $cr
                 'skip_scan' => $skipScan,
             ];
         }
-
-        $catalogDiscountTotal = $discountTotal;
-        $manualDiscount = jg_store_ops_walkins_order_discount($payload, $subtotal - $catalogDiscountTotal);
-        $discountTotal = round($catalogDiscountTotal + $manualDiscount['total'], 2);
+                $catalogDiscountTotal = $discountTotal;
+        $manualDiscount = [
+            'type' => '',
+            'value' => 0.0,
+            'total' => 0.0,
+        ];
+        $discountTotal = round($catalogDiscountTotal, 2);
         $tax = 0.0;
         $total = round($subtotal - $discountTotal + $tax + (float) $shippingCost, 2);
         $insertInvoice = $pdo->prepare(
