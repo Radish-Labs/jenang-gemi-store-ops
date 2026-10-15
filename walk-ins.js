@@ -105,6 +105,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const lineGross = (item) => moneyValue(item.sale_price) * Number(item.qty || 0);
   const lineDiscount = (item) => Math.round(lineGross(item) * discountRateForItem(item)) / 100;
   const lineTotal = (item) => Math.max(0, lineGross(item) - lineDiscount(item));
+  // Returns null for anything the server would round differently, so the printed invoice matches the saved one.
+  const parseDiscountRate = (value) => {
+    const raw = String(value ?? '').trim();
+    if (raw === '') return 0;
+    if (!/^\d{1,3}(\.\d{1,2})?$/.test(raw)) return null;
+    const rate = Number(raw);
+    return rate <= 100 ? rate : null;
+  };
 
   const orderDiscount = (eligibleTotal) => {
     const raw = String(refs.discountValue?.value || '').trim();
@@ -338,25 +346,26 @@ document.addEventListener('DOMContentLoaded', () => {
             <small>
               <code>${escapeHtml(item.sku)}</code>
               <i>${item.scanned ? 'Scanned' : 'Skip-scan'}</i>
-              ${discountRate > 0 ? `<i>${formatPrintNumber(discountRate)}% off</i>` : ''}
+              <i data-cart-discount-badge${discountRate > 0 ? '' : ' hidden'}>${formatPrintNumber(discountRate)}% off</i>
               ${unitPrice <= 0 ? '<b>No sale price</b>' : ''}
             </small>
           </span>
           <label class="admin-walkins-item-discount">
-          <span>Discount (%)</span>
-          <input
-          type="number"
-          min="0"
-          max="100"
-          step="0.01"
-          value="${discountRate}"
-          data-cart-discount="${escapeHtml(item.sku)}"
-          aria-label="Discount percentage for ${escapeHtml(item.sku)}"
-  >
-</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              inputmode="decimal"
+              value="${discountRate}"
+              data-cart-discount="${escapeHtml(item.sku)}"
+              aria-label="Discount percentage for ${escapeHtml(item.sku)}"
+            >
+            <span aria-hidden="true">%</span>
+          </label>
           <span class="admin-walkins-row-price">
             <strong>${formatRupiah(unitPrice)}</strong>
-            <small>${formatRupiah(lineTotal(item))}</small>
+            <small data-cart-line-total>${formatRupiah(lineTotal(item))}</small>
           </span>
           <span class="admin-walkins-qty">
             <button type="button" data-cart-decrease="${escapeHtml(item.sku)}" aria-label="Decrease ${escapeHtml(item.sku)}">-</button>
@@ -827,37 +836,63 @@ document.addEventListener('DOMContentLoaded', () => {
     if (decrease instanceof HTMLButtonElement) changeQuantity(decrease.dataset.cartDecrease || '', -1);
     if (remove instanceof HTMLButtonElement) removeItem(remove.dataset.cartRemove || '');
   });
-    refs.cartList?.addEventListener('change', (event) => {
+  // A keyboard-wedge scanner types into whichever field has focus. When a discount field ends
+  // with a known barcode, keep what was typed before it as the discount and scan the barcode.
+  const splitScannedDiscount = (raw) => {
+    for (let start = 0; start <= raw.length - 8; start += 1) {
+      const code = raw.slice(start);
+      if (!findProductByScan(code)) continue;
+      const prefix = raw.slice(0, start);
+      const rate = prefix === '' ? null : parseDiscountRate(prefix);
+      if (prefix === '' || rate !== null) return { code, rate };
+    }
+    return null;
+  };
+  // Update the row in place: rebuilding the cart here would swallow the click or Tab that moved focus out of the field.
+  const renderCartRowDiscount = (item) => {
+    const row = [...(refs.cartList?.querySelectorAll('[data-cart-sku]') || [])]
+      .find((element) => element.dataset.cartSku === item.sku);
+    if (!row) return;
+    const discountRate = discountRateForItem(item);
+    const badge = row.querySelector('[data-cart-discount-badge]');
+    if (badge instanceof HTMLElement) {
+      badge.hidden = discountRate <= 0;
+      badge.textContent = `${formatPrintNumber(discountRate)}% off`;
+    }
+    const lineTotalLabel = row.querySelector('[data-cart-line-total]');
+    if (lineTotalLabel) lineTotalLabel.textContent = formatRupiah(lineTotal(item));
+  };
+  refs.cartList?.addEventListener('keydown', (event) => {
     const target = event.target;
-
-    if (!(target instanceof HTMLInputElement)) return;
-    if (!target.matches('[data-cart-discount]')) return;
-
-    const sku = target.dataset.cartDiscount || '';
-    const item = state.cart.find((product) => product.sku === sku);
-
+    if (event.key !== 'Enter' || !(target instanceof HTMLInputElement) || !target.matches('[data-cart-discount]')) return;
+    // Hand focus back to the page so the next scan reaches the scanner listener.
+    target.blur();
+  });
+  refs.cartList?.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.matches('[data-cart-discount]')) return;
+    const item = state.cart.find((product) => product.sku === (target.dataset.cartDiscount || ''));
     if (!item) return;
 
     const rawValue = target.value.trim();
-    const rate = Number(rawValue);
-
-    if (
-      rawValue === '' ||
-      !Number.isFinite(rate) ||
-      rate < 0 ||
-      rate > 100
-    ) {
+    let rate = target.validity.badInput ? null : parseDiscountRate(rawValue);
+    const scan = rate === null ? splitScannedDiscount(rawValue) : null;
+    if (scan) rate = scan.rate ?? discountRateForItem(item);
+    if (rate === null) {
       target.value = String(discountRateForItem(item));
-      setError('Discount must be between 0% and 100%.');
+      setError('Discount must be from 0% to 100%, with at most 2 decimals.');
       return;
     }
 
-    invalidatePrintedInvoice();
+    target.value = String(rate);
     setError('');
-
-    item.discount_rate = rate;
-
-    renderCart();
+    if (rate !== discountRateForItem(item)) {
+      invalidatePrintedInvoice();
+      item.discount_rate = rate;
+      renderCartRowDiscount(item);
+      renderTotals();
+    }
+    if (scan) handleScan(scan.code, 'keyboard');
   });
   refs.clearCart?.addEventListener('click', () => {
     invalidatePrintedInvoice();

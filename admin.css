@@ -8933,7 +8933,7 @@ button.admin-store-sidebar-profile:hover {
 
 .admin-walkins-cart-row {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) auto auto 36px;
+  grid-template-columns: 46px minmax(0, 1fr) auto auto auto 36px;
   align-items: center;
   gap: 10px;
   padding: 10px;
@@ -9026,6 +9026,50 @@ button.admin-store-sidebar-profile:hover {
   color: var(--admin-muted);
   font-size: 10px;
   font-weight: 800;
+}
+
+.admin-walkins-item-discount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: 84px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  background: var(--admin-surface);
+}
+
+.admin-walkins-item-discount:focus-within {
+  border-color: var(--admin-accent-primary);
+}
+
+.admin-walkins-item-discount input {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  outline: none;
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.admin-walkins-item-discount input::-webkit-outer-spin-button,
+.admin-walkins-item-discount input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.admin-walkins-item-discount span {
+  padding-left: 2px;
+  color: var(--admin-muted);
+  font-size: 12px;
+  font-weight: 950;
 }
 
 .admin-walkins-qty {
@@ -11274,10 +11318,14 @@ button.admin-store-sidebar-profile:hover {
   }
 
   .admin-walkins-cart-row {
-    grid-template-columns: 42px minmax(0, 1fr) 34px;
+    grid-template-columns: 42px minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "icon main remove"
-      "price price qty";
+      "icon main main remove"
+      "price price discount qty";
+  }
+
+  .admin-walkins-item-discount {
+    grid-area: discount;
   }
 
   .admin-walkins-row-icon {
@@ -11301,6 +11349,7 @@ button.admin-store-sidebar-profile:hover {
 
   .admin-walkins-remove {
     grid-area: remove;
+    justify-self: end;
   }
 }
 

@@ -80,6 +80,16 @@ try {
 } catch (InvalidArgumentException) {
     // Expected.
 }
+
+jg_store_ops_walkins_reject_order_discount(['discount' => null]);
+jg_store_ops_walkins_reject_order_discount([]);
+try {
+    jg_store_ops_walkins_reject_order_discount(['discount' => ['type' => 'percentage', 'value' => 10]]);
+    fwrite(STDERR, 'Order discounts from a stale page must be rejected, not silently dropped.' . PHP_EOL);
+    exit(1);
+} catch (InvalidArgumentException) {
+    // Expected.
+}
 // Test two SKUs with different discounts.
 $skuA = [
     'price' => 100000.0,

@@ -170,6 +170,18 @@ function jg_store_ops_walkins_discount_rate(mixed $value): float
 }
 
 /**
+ * Discounts are per SKU now. A page loaded before that change still posts an order discount,
+ * and dropping it would save a higher total than the invoice the customer was charged from.
+ */
+function jg_store_ops_walkins_reject_order_discount(array $payload): void
+{
+    $discount = is_array($payload['discount'] ?? null) ? $payload['discount'] : [];
+    if (trim((string) ($discount['type'] ?? '')) !== '') {
+        throw new InvalidArgumentException('Order discounts were replaced by per-product discounts. Reload this page, set the discount on each product, and print the invoice again.');
+    }
+}
+
+/**
  * @return array{type:string,value:float,total:float}
  */
 function jg_store_ops_walkins_order_discount(array $payload, float $eligibleTotal): array
@@ -483,6 +495,7 @@ function jg_store_ops_walkins_complete_sale(PDO $pdo, array $payload, string $cr
         throw new InvalidArgumentException('Add at least one product before completing the sale.');
     }
 
+    jg_store_ops_walkins_reject_order_discount($payload);
     $invoiceType = jg_store_ops_walkins_normalize_invoice_type($payload['invoice_type'] ?? $payload['order_type'] ?? 'walk_in');
     $saleType = jg_store_ops_walkins_normalize_sale_type($invoiceType, $payload['sale_type'] ?? '');
     $shippingCost = jg_store_ops_walkins_shipping_cost($invoiceType, $payload);
