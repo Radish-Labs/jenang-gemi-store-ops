@@ -254,8 +254,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const totals = () => {
     const subtotal = state.cart.reduce((sum, item) => sum + lineGross(item), 0);
     const catalogDiscount = state.cart.reduce((sum, item) => sum + lineDiscount(item), 0);
-    const manualDiscount = orderDiscount(Math.max(0, subtotal - catalogDiscount));
-    const discount = catalogDiscount + (manualDiscount.valid ? manualDiscount.total : 0);
+    const manualDiscount = {
+      type: '',
+      value: 0,
+      total: 0,
+      valid: true,
+      message: ''
+    };
+    const discount = catalogDiscount;
     const tax = 0;
     const itemCount = state.cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
     const shippingCost = isWhatsappInvoice ? shippingCostValue() : 0;
@@ -336,6 +342,18 @@ document.addEventListener('DOMContentLoaded', () => {
               ${unitPrice <= 0 ? '<b>No sale price</b>' : ''}
             </small>
           </span>
+          <label class="admin-walkins-item-discount">
+          <span>Discount (%)</span>
+          <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value="${discountRate}"
+          data-cart-discount="${escapeHtml(item.sku)}"
+          aria-label="Discount percentage for ${escapeHtml(item.sku)}"
+  >
+</label>
           <span class="admin-walkins-row-price">
             <strong>${formatRupiah(unitPrice)}</strong>
             <small>${formatRupiah(lineTotal(item))}</small>
@@ -744,10 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
             address: isWhatsappInvoice ? (refs.customerEmail?.value || '') : ''
           },
           payment_method: state.paymentMethod,
-          discount: summary.manualDiscount.type ? {
-            type: summary.manualDiscount.type,
-            value: summary.manualDiscount.value
-          } : null,
+          discount: null,
           items: state.cart.map((item) => ({
             sku: item.sku,
             qty: item.qty,
@@ -812,6 +827,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (decrease instanceof HTMLButtonElement) changeQuantity(decrease.dataset.cartDecrease || '', -1);
     if (remove instanceof HTMLButtonElement) removeItem(remove.dataset.cartRemove || '');
   });
+    refs.cartList?.addEventListener('change', (event) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.matches('[data-cart-discount]')) return;
+
+    const sku = target.dataset.cartDiscount || '';
+    const item = state.cart.find((product) => product.sku === sku);
+
+    if (!item) return;
+
+    const rawValue = target.value.trim();
+    const rate = Number(rawValue);
+
+    if (
+      rawValue === '' ||
+      !Number.isFinite(rate) ||
+      rate < 0 ||
+      rate > 100
+    ) {
+      target.value = String(discountRateForItem(item));
+      setError('Discount must be between 0% and 100%.');
+      return;
+    }
+
+    invalidatePrintedInvoice();
+    setError('');
+
+    item.discount_rate = rate;
+
+    renderCart();
+  });
   refs.clearCart?.addEventListener('click', () => {
     invalidatePrintedInvoice();
     state.cart = [];
@@ -825,30 +872,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCustomerSummary();
     renderTotals();
     refs.customerName?.focus();
-  });
-  document.querySelectorAll('[data-walkins-discount-mode]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const nextMode = button.dataset.walkinsDiscountMode === 'sale_price' ? 'sale_price' : 'percentage';
-      if (nextMode !== state.discountMode && refs.discountValue instanceof HTMLInputElement) refs.discountValue.value = '';
-      state.discountMode = nextMode;
-      document.querySelectorAll('[data-walkins-discount-mode]').forEach((item) => item.classList.toggle('is-active', item === button));
-      if (refs.discountPrefix) refs.discountPrefix.textContent = state.discountMode === 'sale_price' ? 'Rp' : '%';
-      if (refs.discountHelp) refs.discountHelp.textContent = state.discountMode === 'sale_price'
-        ? 'Final merchandise price after discount.'
-        : 'Percentage off the merchandise total.';
-      if (refs.discountValue instanceof HTMLInputElement) {
-        refs.discountValue.max = state.discountMode === 'percentage' ? '100' : '999999999999';
-        refs.discountValue.placeholder = '0';
-      }
-      invalidatePrintedInvoice();
-      setError('');
-      renderTotals();
-    });
-  });
-  refs.discountValue?.addEventListener('input', () => {
-    invalidatePrintedInvoice();
-    setError('');
-    renderTotals();
   });
   [refs.customerName, refs.customerPhone, refs.customerEmail].forEach((input) => {
     input?.addEventListener('input', () => {

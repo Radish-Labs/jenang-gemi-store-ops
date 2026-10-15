@@ -33,7 +33,30 @@ $percentageDiscount = jg_store_ops_walkins_order_discount(['discount' => ['type'
 walkins_expect(15000.0, $percentageDiscount['total'], 'Percentage discounts must apply to merchandise.');
 $salePriceDiscount = jg_store_ops_walkins_order_discount(['discount' => ['type' => 'sale_price', 'value' => 70000]], 100000);
 walkins_expect(30000.0, $salePriceDiscount['total'], 'Sale-price discounts must set the final merchandise price.');
+// Per-SKU discount rate validation.
+walkins_expect(
+    10.0,
+    jg_store_ops_walkins_discount_rate(10),
+    'SKU discount of 10% should be accepted.'
+);
 
+walkins_expect(
+    25.5,
+    jg_store_ops_walkins_discount_rate(25.5),
+    'SKU discount of 25.5% should be accepted.'
+);
+
+walkins_expect(
+    0.0,
+    jg_store_ops_walkins_discount_rate(0),
+    'SKU discount of 0% should be accepted.'
+);
+
+walkins_expect(
+    100.0,
+    jg_store_ops_walkins_discount_rate(100),
+    'SKU discount of 100% should be accepted.'
+);
 try {
     jg_store_ops_walkins_shipping_cost('whatsapp', []);
     fwrite(STDERR, 'Missing WhatsApp shipping cost should fail.' . PHP_EOL);
@@ -57,5 +80,34 @@ try {
 } catch (InvalidArgumentException) {
     // Expected.
 }
+// Test two SKUs with different discounts.
+$skuA = [
+    'price' => 100000.0,
+    'qty' => 1,
+    'discount_rate' => 10,
+];
 
+$skuB = [
+    'price' => 50000.0,
+    'qty' => 1,
+    'discount_rate' => 20,
+];
+
+$subtotal = 0.0;
+$discountTotal = 0.0;
+
+foreach ([$skuA, $skuB] as $item) {
+    $gross = round($item['price'] * $item['qty'], 2);
+    $rate = jg_store_ops_walkins_discount_rate($item['discount_rate']);
+    $lineDiscount = round($gross * ($rate / 100), 2);
+
+    $subtotal += $gross;
+    $discountTotal += $lineDiscount;
+}
+
+$total = round($subtotal - $discountTotal, 2);
+
+walkins_expect(150000.0, $subtotal, 'Two SKU subtotal should be correct.');
+walkins_expect(20000.0, $discountTotal, 'Two SKU discounts should total Rp20,000.');
+walkins_expect(130000.0, $total, 'Two SKU final total should be Rp130,000.');
 echo "walk-ins-test: ok\n";
