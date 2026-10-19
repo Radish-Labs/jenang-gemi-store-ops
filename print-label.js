@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.querySelector('[data-print-label-page]');
   if (!root) return;
 
@@ -44,13 +44,31 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const params = new URLSearchParams(window.location.search);
-  const orderId = params.get('order') || window.sessionStorage.getItem(activeOrderStorageKey) || '';
+  let orderId = params.get('order') || '';
+  if (!orderId) {
+    try { orderId = window.sessionStorage.getItem(activeOrderStorageKey) || ''; } catch (_error) { /* Storage is optional. */ }
+  }
+  let handoffOrder = null;
+  if (params.get('handoff')) {
+    if (statusNode) statusNode.textContent = 'Loading order…';
+    try {
+      handoffOrder = await window.JGStoreScanHandoff.load(params, ordersEndpoint);
+    } catch (error) {
+      if (statusNode) statusNode.textContent = 'Unable to load order';
+      const errorNode = document.querySelector('[data-print-error]');
+      if (errorNode) {
+        errorNode.textContent = error instanceof Error ? error.message : 'Reload this page to retry.';
+        errorNode.hidden = false;
+      }
+      return;
+    }
+  }
   const requestedAccount = params.get('account') || '';
   const requestedPlatform = params.get('platform') || '';
   const isReprint = params.get('reprint') === '1';
   const orders = readOrders();
   const storedOrder = orders.find((item) => String(item.id || '') === orderId) || null;
-  const order = storedOrder || (orderId ? {
+  const order = handoffOrder || storedOrder || (orderId ? {
     id: orderId,
     sourceAccountKey: requestedAccount,
     packageNumber: params.get('package') || params.get('package_id') || '',
@@ -138,15 +156,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updateStoredOrder = (mutator) => {
     if (!order) return;
-    if (storedOrder) {
-      mutator(storedOrder);
-      writeOrders(orders);
-      return;
-    }
-    const cachedOrder = { ...order, id: String(order.id || orderId || '') };
+    // An older label tab must not replace newer board rows with its startup cache.
+    const latestOrders = readOrders();
+    const index = latestOrders.findIndex((item) => item
+      && String(item.id || '') === String(order.id || '')
+      && normalizeSourceKey(item.platform) === normalizeSourceKey(order.platform)
+      && sourceKeyFromOrder(item) === sourceKeyFromOrder(order));
+    const cachedOrder = { ...order, ...(index >= 0 ? latestOrders[index] : {}) };
     mutator(cachedOrder);
-    orders.push(cachedOrder);
-    writeOrders(orders);
+    if (index >= 0) latestOrders[index] = cachedOrder;
+    else latestOrders.push(cachedOrder);
+    writeOrders(latestOrders);
   };
 
   const markPrinted = (serverAcknowledgedAt) => {

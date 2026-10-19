@@ -83,6 +83,7 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
             </section>
         </main>
     <?php jg_store_ops_shell_close(); ?>
+    <script src="../../scan-handoff.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/scan-handoff.js')); ?>" defer></script>
     <script src="../../store-shell.js?v=<?php echo urlencode($storeShellJsVersion ?: '1'); ?>" defer></script>
     <script src="../../assets/vendor/pdf-lib.min.js?v=1.17.1" defer></script>
     <script src="../../label-reshape.js?v=<?php echo urlencode($labelReshapeJsVersion ?: '1'); ?>" defer></script>

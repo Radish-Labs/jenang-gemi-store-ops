@@ -3308,14 +3308,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      await postOrderAction('begin_fulfillment', order);
+      const result = await postOrderAction('begin_fulfillment', order, {
+        scan_order: { ...order, platform: normalizeSourceKey(order.platform), sourceAccountKey: sourceKeyFromOrder(order) }
+      });
+      if (!result.scan_handoff) throw new Error('Unable to open scanning. Refresh the board and try again.');
       saveOrders();
       try {
         window.sessionStorage.setItem(activeOrderStorageKey, order.id);
       } catch (_error) {
         // Query string still carries the order id.
       }
-      const scanUrl = `./scan/?order=${encodeURIComponent(order.id)}`;
+      const scanUrl = `./scan/?order=${encodeURIComponent(order.id)}&handoff=${encodeURIComponent(result.scan_handoff)}`;
       if (button) {
         button.disabled = false;
         button.textContent = originalLabel;

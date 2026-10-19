@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const root = document.querySelector('[data-store-scan]');
   if (!root) return;
 
@@ -46,9 +46,27 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const params = new URLSearchParams(window.location.search);
-  const orderId = params.get('order') || window.sessionStorage.getItem(activeOrderStorageKey) || '';
+  let orderId = params.get('order') || '';
+  if (!orderId) {
+    try { orderId = window.sessionStorage.getItem(activeOrderStorageKey) || ''; } catch (_error) { /* Storage is optional. */ }
+  }
+  let handoffOrder = null;
+  if (params.get('handoff')) {
+    if (orderIdNode) orderIdNode.textContent = 'Loading order…';
+    try {
+      handoffOrder = await window.JGStoreScanHandoff.load(params, ordersEndpoint);
+    } catch (error) {
+      if (orderIdNode) orderIdNode.textContent = 'Unable to load order';
+      const errorNode = document.querySelector('[data-scan-error]');
+      if (errorNode) {
+        errorNode.textContent = error instanceof Error ? error.message : 'Reload this page to retry.';
+        errorNode.hidden = false;
+      }
+      return;
+    }
+  }
   const orders = readOrders();
-  const order = orders.find((item) => item.id === orderId) || null;
+  const order = handoffOrder || orders.find((item) => item && String(item.id || '') === orderId) || null;
   const scans = new Map();
   let scanBuffer = '';
   let scanBufferTimer = 0;
@@ -494,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setTimeout(() => {
       const account = String(order.sourceAccountKey || order.account_key || '');
       const platform = String(order.platform || '').toLowerCase();
-      window.location.href = `../print-label/?order=${encodeURIComponent(order.id)}${account ? `&account=${encodeURIComponent(account)}` : ''}${platform ? `&platform=${encodeURIComponent(platform)}` : ''}`;
+      window.location.href = `../print-label/?order=${encodeURIComponent(order.id)}${account ? `&account=${encodeURIComponent(account)}` : ''}${platform ? `&platform=${encodeURIComponent(platform)}` : ''}${params.get('handoff') ? `&handoff=${encodeURIComponent(params.get('handoff'))}` : ''}`;
     }, 420);
   };
 

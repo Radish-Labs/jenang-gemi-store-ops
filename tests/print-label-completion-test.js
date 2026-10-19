@@ -26,7 +26,7 @@ assert.match(printFlow[0], /openPrintDialog\(\)[\s\S]*showPrintConfirmationFallb
 assert.doesNotMatch(printFlow[0], /markPrinted\(|queuePrintCompletion\(/, 'printing alone must not complete the order before the red confirmation button is pressed');
 assert.doesNotMatch(printFlow[0], /\bawait\b/, 'the user-activated print path should not wait before opening the print dialog');
 assert.match(script, /currentOrder\.status = 'FULFILLED';[\s\S]*currentOrder\.fulfillmentStatus = 'FULFILLED'/, 'a server-acknowledged completion should update the local order cache');
-assert.match(script, /const cachedOrder = \{ \.\.\.order, id:[\s\S]*orders\.push\(cachedOrder\);[\s\S]*writeOrders\(orders\)/, 'confirmation should persist a printed-order exclusion even if the label tab opened without a cached board row');
+// Cache merging and completion without a startup row are exercised in scan-handoff-test.js.
 assert.match(script, /label_backed: labelLoaded \|\| Boolean\(order\?\.labelBacked/, 'a loaded shipping label should remain fulfillable while automatic arrangement is paused');
 assert.match(storeHome, /const serverAcknowledged = Boolean\(printedLabel && printedLabel\.serverAcknowledgedAt\);[\s\S]*status: 'FULFILLED',[\s\S]*fulfillmentStatus: 'FULFILLED'/, 'refresh merging must hide a local printed order only after the shared server acknowledged it');
 assert.doesNotMatch(storeHome, /const locallyPrinted = Boolean\(printedLabel && printedLabel\.printedAt\)/, 'a device-local print marker must never hide an unacknowledged order');

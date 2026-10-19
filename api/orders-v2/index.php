@@ -8,6 +8,7 @@ require_once dirname(__DIR__, 2) . '/partner-orders-bootstrap.php';
 require_once dirname(__DIR__, 2) . '/store-ops-fulfillment-runtime.php';
 require_once dirname(__DIR__, 2) . '/website-orders-bootstrap.php';
 require_once dirname(__DIR__, 2) . '/marketplace-queue-policy.php';
+require_once dirname(__DIR__, 2) . '/scan-handoff.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -1185,7 +1186,7 @@ function jg_store_ops_orders_current_employee_name(): string
     return function_exists('jg_admin_current_employee_name') ? jg_admin_current_employee_name() : 'Admin';
 }
 
-function jg_store_ops_orders_fulfillment_response(PDO $pdo, array $row): void
+function jg_store_ops_orders_fulfillment_response(PDO $pdo, array $row, array $extra = []): void
 {
     $employeeMap = jg_store_ops_fulfillment_employee_map($pdo);
     $state = jg_store_ops_fulfillment_state_from_row($row, jg_store_ops_orders_current_employee_id(), $employeeMap);
@@ -1193,6 +1194,7 @@ function jg_store_ops_orders_fulfillment_response(PDO $pdo, array $row): void
         'ok' => true,
         'order' => $state,
         'fulfillment' => $state,
+        ...$extra,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -1454,6 +1456,8 @@ if ($method === 'POST') {
         }
 
         if ($action === 'begin_fulfillment') {
+            $scanOrder = array_key_exists('scan_order', $payload)
+                ? jg_store_ops_scan_handoff_prepare($payload['scan_order'], $key) : null;
             $row = jg_store_ops_fulfillment_claim($pdo, $key, $employeeId, $employeeName);
             if ($key['source_platform'] === 'whatsapp') {
                 try {
@@ -1466,7 +1470,14 @@ if ($method === 'POST') {
                 && !jg_store_ops_orders_partner_update_status($key['order_id'], 'IS_BEING_FULFILLED')) {
                 throw new RuntimeException('Unable to start this Partner order. It may have been cancelled; refresh the board and try again.');
             }
-            jg_store_ops_orders_fulfillment_response($pdo, $row);
+            $extra = [];
+            if ($scanOrder !== null) {
+                $extra['scan_handoff'] = jg_store_ops_scan_handoff_save($scanOrder, $key, $employeeId);
+                if (!session_write_close()) {
+                    throw new RuntimeException('Unable to save the order for scanning. Please try Lanjut again.');
+                }
+            }
+            jg_store_ops_orders_fulfillment_response($pdo, $row, $extra);
         }
 
         if ($action === 'release_order') {
@@ -1564,6 +1575,30 @@ if ($method === 'POST') {
 
 if ($method !== 'GET') {
     jg_store_ops_orders_fail('Method not allowed.', 405);
+}
+
+if (isset($_GET['scan_handoff'])) {
+    header('Cache-Control: private, no-store');
+    $entry = jg_store_ops_scan_handoff_read(
+        (string) $_GET['scan_handoff'], trim((string) ($_GET['order_id'] ?? '')),
+        jg_store_ops_orders_current_employee_id()
+    );
+    if ($entry === null) {
+        jg_store_ops_orders_fail('This scan session has expired. Return to the board and start the order again.', 404);
+    }
+    try {
+        $pdo = jg_store_ops_fulfillment_db();
+        $row = jg_store_ops_fulfillment_fetch_order($pdo, $entry['key'], false);
+        $state = jg_store_ops_fulfillment_state_from_row($row, jg_store_ops_orders_current_employee_id());
+        if (!$row || empty($state['claimedBy']) || empty($state['currentEmployeeCanWork'])) {
+            jg_store_ops_orders_fail('This order is completed, released or assigned to another employee. Return to the board.', 409);
+        }
+        echo json_encode(['ok' => true, 'order' => array_merge($entry['order'], $state)], JSON_UNESCAPED_SLASHES);
+        exit;
+    } catch (Throwable $error) {
+        error_log('Scan handoff failed: ' . $error->getMessage());
+        jg_store_ops_orders_fail('Unable to load this order. Reload this page to retry.', 503);
+    }
 }
 
 if (isset($_GET['completion_audit'])) {
