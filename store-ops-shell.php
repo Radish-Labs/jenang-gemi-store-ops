@@ -110,7 +110,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.05</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.06</div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -256,10 +256,16 @@ function jg_store_ops_print_helper_settings_panel(string $rootPrefix): void
                                 </label>
                             </div>
 
+                            <div class="admin-settings-section-head">
+                                <div>
+                                    <h4>Install or update the helper</h4>
+                                    <p>Download the latest helper, then open <strong>store-ops-print-helper-setup.cmd</strong> on this Windows computer. It replaces the installed helper and starts it automatically. When it finishes, press Recheck, then Test print.</p>
+                                </div>
+                            </div>
                             <div class="admin-scanner-health-actions">
-                                <a class="admin-ghost-btn" href="<?php echo htmlspecialchars($rootPrefix . 'api/print-helper/', ENT_QUOTES, 'UTF-8'); ?>" download>
+                                <a class="admin-ghost-btn" href="<?php echo htmlspecialchars($rootPrefix . 'api/print-helper/', ENT_QUOTES, 'UTF-8'); ?>" data-print-helper-update download="store-ops-print-helper-setup.cmd">
                                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
-                                    Download helper
+                                    Install / update helper
                                 </a>
                                 <button type="button" class="admin-ghost-btn" data-print-helper-check>
                                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>

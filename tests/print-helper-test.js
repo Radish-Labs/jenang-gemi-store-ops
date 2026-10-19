@@ -109,7 +109,23 @@ const clientChecks = async () => {
   responses = Array.from({ length: 5 }, () => new TypeError('Failed to fetch'));
   assert.deepEqual(await client.watchJob('job'), { state: 'unknown', reason: 'helper_unreachable' }, 'a vanished helper must not be read as a printed label');
   responses = [jsonResponse(404, { ok: false, reason: 'unknown_job' })];
-  assert.equal((await client.watchJob('job')).state, 'failed');
+  assert.equal((await client.watchJob('job')).state, 'unknown', 'a lost job record does not prove that the label failed to print');
+  const callsBeforeRecovery = calls.length;
+  responses = [
+    jsonResponse(500, { ok: false, reason: 'helper_error' }),
+    jsonResponse(200, { ok: true, state: 'done', reason: '' })
+  ];
+  assert.equal((await client.watchJob('job')).state, 'done', 'a temporary queue query error should recover and allow normal completion');
+  assert.deepEqual(calls.slice(callsBeforeRecovery), [
+    { url: 'http://helper.test/jobs/job', method: 'GET' },
+    { url: 'http://helper.test/jobs/job', method: 'GET' }
+  ], 'recovering print status must never send another label');
+  responses = Array.from({ length: 5 }, () => jsonResponse(500, { ok: false, reason: 'helper_error' }));
+  assert.deepEqual(await client.watchJob('job'), { state: 'unknown', reason: 'helper_error' }, 'persistent tracking errors should offer manual confirmation');
+  responses = [jsonResponse(403, { ok: false, reason: 'origin_not_allowed' })];
+  assert.deepEqual(await client.watchJob('job'), { state: 'unknown', reason: 'origin_not_allowed' }, 'lost access to status is not proof of a failed print');
+  responses = [jsonResponse(200, { ok: true, state: 'failed', reason: 'send_failed' })];
+  assert.deepEqual(await client.watchJob('job'), { ok: true, state: 'failed', reason: 'send_failed' }, 'an explicitly failed print job must remain failed');
   responses = [jsonResponse(200, { ok: true, state: 'printing', reason: '' }), jsonResponse(200, { ok: true, state: 'printing', reason: '' })];
   assert.equal((await client.watchJob('job', { stallMs: -1 })).state, 'unknown', 'a label that never leaves the queue is not assumed printed');
   const aborted = new AbortController();

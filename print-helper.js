@@ -76,7 +76,7 @@
       }
       if (!response.ok || payload.ok === false) {
         const reason = String(payload.reason || 'helper_error');
-        throw Object.assign(new Error(describeReason(reason)), { reason });
+        throw Object.assign(new Error(describeReason(reason)), { reason, status: response.status });
       }
       return payload;
     };
@@ -107,9 +107,12 @@
           view = await job(id);
           misses = 0;
         } catch (error) {
-          if (!error.unreachable) return { state: 'failed', reason: error.reason || 'helper_error' };
+          // The label was already submitted. A status request failure says
+          // nothing about whether it printed, and must not trigger a reprint.
+          const reason = error.unreachable ? 'helper_unreachable' : (error.reason || 'helper_error');
+          const retryable = error.unreachable || error.status >= 500 || reason === 'helper_error';
           misses += 1;
-          if (misses >= 5) return { state: 'unknown', reason: 'helper_unreachable' };
+          if (!retryable || misses >= 5) return { state: 'unknown', reason };
           await wait(intervalMs);
           continue;
         }
