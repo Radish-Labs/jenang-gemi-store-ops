@@ -28,6 +28,25 @@ try {
     ] as $name => $sql) {
         $statement = $pdo->prepare($sql); $statement->execute($orders); $result[$name] = $statement->fetchAll();
     }
+    // Validate only this order's inventory plan without applying a movement.
+    $rows = jg_store_ops_astra_rows($pdo);
+    $items = json_decode('[{"sku":"ZSYRUP_VANILLA_550ML","quantity":1},{"sku":"ZSYRUP_MINT_550ML","quantity":1},{"sku":"ZSYRUP_LYCHEE_550ML","quantity":1},{"sku":"ZSYRUP_MANGO_550ML","quantity":1},{"sku":"ZSYRUP_STRAWBERRY_550ML","quantity":1},{"sku":"ZSYRUP_PEACH_550ML","quantity":1},{"sku":"ZMERCH_STICKER","quantity":1}]', true);
+    try { $result['stock_plan'] = jg_store_ops_astra_deduction_plan($rows, $items); }
+    catch (Throwable $error) { $result['stock_plan_error'] = $error->getMessage(); }
+    $result['error_log_entries'] = [];
+    foreach (array_unique(array_filter([(string) ini_get('error_log'), dirname(__DIR__, 2) . '/error_log', dirname(__DIR__) . '/orders-v2/error_log'])) as $path) {
+        if (!is_file($path) || !is_readable($path)) continue;
+        $file = fopen($path, 'rb');
+        if (!$file) continue;
+        fseek($file, max(0, filesize($path) - 262144));
+        $tail = stream_get_contents($file); fclose($file);
+        foreach (explode("\n", $tail) as $line) {
+            if (preg_match('/26101921VS91B4|Store Ops order action failed:|Marketplace processed callback failed:/', $line)) {
+                $result['error_log_entries'][] = substr($line, 0, 2000);
+            }
+        }
+    }
+    $result['error_log_entries'] = array_slice($result['error_log_entries'], -20);
     $pdo->rollBack();
     echo json_encode($result, JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
