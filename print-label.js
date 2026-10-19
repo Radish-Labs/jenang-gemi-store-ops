@@ -149,9 +149,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const setError = (message) => {
-    if (!errorNode) return;
-    errorNode.textContent = message;
-    errorNode.hidden = message === '';
+    for (const node of [errorNode, document.querySelector('[data-print-confirmation-error]')]) {
+      if (!node) continue;
+      node.textContent = message;
+      node.hidden = message === '';
+    }
   };
 
   const updateStoredOrder = (mutator) => {
@@ -249,27 +251,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         items: completionItems(),
         customer_name: String(order?.customerName || order?.customer_name || order?.username || order?.customer?.username || order?.customer?.name || '').trim()
       });
-    if (!persistPendingCompletion(payload)) {
-      throw new Error('Store Ops could not save the completion for retry.');
-    }
+    // Keep a durable retry when storage is available, but do not prevent
+    // server confirmation just because this browser's storage is full.
+    persistPendingCompletion(payload);
     const key = completionQueueKey(payload);
-    const response = await fetch(ordersEndpoint, {
-      method: 'POST',
-      credentials: 'same-origin',
-      keepalive: true,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const responsePayload = await response.json().catch(() => ({}));
-    if (!response.ok || responsePayload.ok === false) {
-      throw new Error(responsePayload.error || 'Store Ops did not confirm completion.');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(ordersEndpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const responsePayload = await response.json().catch(() => ({}));
+      if (!response.ok || responsePayload.ok !== true) {
+        throw new Error(responsePayload.error || 'Store Ops did not confirm completion.');
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Store Ops took too long to confirm. Retry confirmation without printing another label.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
     }
     removeAcknowledgedCompletion(key);
     return new Date().toISOString();
   };
 
   const setConfirmationDisabled = (disabled) => {
-    if (confirmPrintedButton instanceof HTMLButtonElement) confirmPrintedButton.disabled = disabled;
+    if (confirmPrintedButton instanceof HTMLButtonElement) {
+      confirmPrintedButton.disabled = disabled;
+      confirmPrintedButton.textContent = disabled && printClosing ? 'Saving printed order…' : 'Printed successfully';
+    }
   };
 
   const resetPrintLifecycle = () => {

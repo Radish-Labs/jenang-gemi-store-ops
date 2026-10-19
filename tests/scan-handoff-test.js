@@ -88,7 +88,7 @@ async function printWithoutCachedOrder() {
   const window={localStorage,sessionStorage:localStorage,
     location:{search:'?order=NEW&handoff=saved-token&account=shop-a&platform=shopee'},
     addEventListener(){},setTimeout(){return 1;},clearTimeout(){},requestAnimationFrame:fn=>fn(),close(){}};
-  const context=vm.createContext({window,document,URLSearchParams,AbortSignal,Error,console,
+  const context=vm.createContext({window,document,URLSearchParams,AbortSignal,AbortController,Error,console,
     URL:{createObjectURL:()=> 'blob:label',revokeObjectURL(){}},
     HTMLButtonElement:class {},HTMLIFrameElement:class {},
     fetch:async(url,options={})=>{

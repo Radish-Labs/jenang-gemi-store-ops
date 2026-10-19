@@ -73,6 +73,7 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
                     </div>
                 </div>
                 <section class="admin-label-print-confirmation" data-print-confirmation aria-live="polite" hidden>
+                    <p class="admin-form-error" data-print-confirmation-error hidden></p>
                     <button type="button" class="admin-primary-btn admin-print-success-btn" data-confirm-label-printed>Printed successfully</button>
                 </section>
                 <section class="admin-label-print-done" data-print-done aria-live="polite" hidden>
