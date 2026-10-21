@@ -16,5 +16,5 @@ $out = ['ok'=>true, 'token_hash'=>hash('sha256', $token), 'token_length'=>strlen
  'provided_hash'=>hash('sha256', $provided), 'provided_length'=>strlen($provided),
  'explicit_env'=>jg_store_ops_env_value('JG_STORE_OPS_WEBSITE_TOKEN') !== '',
  'explicit_config'=>!empty($config['store_ops_website_token'])];
-$out['order'] = jg_store_ops_whatsapp_cancellation_state(jg_store_ops_fulfillment_db(), 'WAEXEC-261019-6726EEE4D2');
+try { $out['order'] = jg_store_ops_whatsapp_cancellation_state(jg_store_ops_fulfillment_db(), 'WAEXEC-261019-6726EEE4D2'); } catch (Throwable $e) { $out['order_error'] = $e->getMessage(); }
 echo json_encode($out, JSON_UNESCAPED_SLASHES);
