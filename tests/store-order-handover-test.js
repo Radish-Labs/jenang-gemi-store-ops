@@ -205,7 +205,7 @@ assert(
     && storeHome.includes('Manual arrange')
     && storeHome.includes('Retry label')
     && !storeHome.includes("shopeeState === 'failed' ? 'Retry arrange'")
-    && storeHome.includes("const arrangementIssue = order.instant && instantState === 'failed'")
+    && storeHome.includes("const arrangementIssue = order.instant && String(order.instantArrangementError || '').trim()")
     && storeHome.includes("order.weekendDependentCutoff || '12:00'")
     && storeHome.includes("isWeekendDependent ? 'is-weekend-dependent' : ''"),
   'Instant orders must sort first, while delayed Shopee fallbacks stay disabled until a real deadline makes them actionable.'
