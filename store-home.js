@@ -131,7 +131,18 @@
     if (!order?.instant) return false;
     if (requiresManualInstantArrangement(order)) return true;
     const state = String(order?.instantArrangementState || order?.instant_arrangement_state || '').trim().toLowerCase();
-    return ['display_only', 'required', 'requested', 'label_pending', 'failed', 'big_set_off'].includes(state);
+    return ['display_only', 'required', 'requested', 'retry', 'label_pending', 'failed', 'big_set_off'].includes(state);
+  };
+  const instantArrangementAction = (order, { enabled = true, locked = false, submitting = false } = {}) => {
+    const state = String(order?.instantArrangementState || '').trim().toLowerCase();
+    const error = String(order?.instantArrangementError || '').trim();
+    return {
+      disabled: !enabled || locked || submitting,
+      label: !enabled ? 'Big Set locked' : (submitting ? 'Arranging…'
+        : (state === 'label_pending' ? 'Retry label'
+          : (['requested', 'retry', 'failed'].includes(state) || error ? 'Retry arrange' : 'Accept + arrange'))),
+      error
+    };
   };
   const formatHandoverSlot = (order) => {
     const supplied = String(order?.handoverSlotLabel || order?.handover_slot_label || '').trim();
@@ -238,6 +249,7 @@
     isCancellationRequested,
     requiresManualInstantArrangement,
     isInstantManualLifecycle,
+    instantArrangementAction,
     formatHandoverSlot,
     filterOrdersByHandover,
     shouldShowOrderLoading,
@@ -377,6 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let automaticArrangementPaused = false;
   let orderSourceErrors = [];
   const startingOrderIds = new Set();
+  const arrangingInstantOrderIds = new Set();
   const scannerBarcodeWaitSeconds = 6;
   const scannerBarcodeWaitMs = scannerBarcodeWaitSeconds * 1000;
   let state = {
@@ -1811,6 +1824,7 @@ document.addEventListener('DOMContentLoaded', () => {
       credentials: 'same-origin',
       keepalive: Boolean(options.keepalive),
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      signal: options.signal,
       body: JSON.stringify(orderActionPayload(action, order, extra))
     });
     const payload = await readJsonResponse(response, 'Unable to update order.');
@@ -2369,7 +2383,6 @@ document.addEventListener('DOMContentLoaded', () => {
         && !order.labelBacked
         && !instantManualLifecycle
         && !cancellationRequested;
-      const instantState = String(order.instantArrangementState || '').trim().toLowerCase();
       const shopeeState = String(order.shopeeArrangementState || '').trim().toLowerCase();
       const shopeeDelayed = Boolean(order.deadlineDelayed);
       const automaticShopeePending = shopeeState === 'automatic' && !automaticArrangementPaused;
@@ -2433,15 +2446,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const retrying = String(order.arrangementRetryState || '').toLowerCase() === 'retrying';
         actionButton = `<button type="button" class="admin-start-order-btn admin-manual-order-btn is-arrangement-retry" data-retry-arrangement="${escapeHtml(order.id)}" title="${escapeHtml(order.arrangementRetryError || 'Automatic shipment arrangement exhausted its retries.')}" ${retrying || automaticArrangementPaused ? 'disabled' : ''}><span>${automaticArrangementPaused ? 'Arrangement paused' : (retrying ? 'Retrying…' : 'Arrangement failed — retry')}</span></button>`;
       } else if (instantManualLifecycle) {
-        const instantDisabled = !bigSetEnabled || isLocked || ['requested', 'label_pending'].includes(instantState);
-        const instantLabel = !bigSetEnabled
-          ? 'Big Set locked'
-          : (instantState === 'requested'
-            ? 'Arranging…'
-            : (instantState === 'label_pending'
-              ? 'Preparing label…'
-              : (instantState === 'failed' ? 'Retry arrange' : 'Accept + arrange')));
-        actionButton = `<button type="button" class="admin-start-order-btn admin-manual-order-btn is-instant-action" data-arrange-instant="${escapeHtml(order.id)}" ${instantDisabled ? 'disabled' : ''}><span>${escapeHtml(instantLabel)}</span></button>`;
+        const instantAction = orderPresentation.instantArrangementAction(order, {
+          enabled: bigSetEnabled,
+          locked: isLocked,
+          submitting: arrangingInstantOrderIds.has(order.id)
+        });
+        actionButton = `<button type="button" class="admin-start-order-btn admin-manual-order-btn is-instant-action" data-arrange-instant="${escapeHtml(order.id)}" title="${escapeHtml(instantAction.error || 'Accept and arrange this Instant shipment.')}" ${instantAction.disabled ? 'disabled' : ''}><span>${escapeHtml(instantAction.label)}</span></button>`;
       } else if (pausedUnarranged) {
         actionButton = isWeekendDependent
           ? `<button type="button" class="admin-start-order-btn admin-paused-order-btn is-weekend-dependent-action" disabled><span>${order.weekendDependentAutoWindowOpen ? 'Weekend auto-arranging' : 'Arrange manually now'}</span></button>`
@@ -2507,9 +2517,8 @@ document.addEventListener('DOMContentLoaded', () => {
       : 'Ready to claim';
     const customerName = String(order.customerName || '').trim();
     const packageNumber = String(order.packageNumber || '').trim();
-    const instantState = String(order.instantArrangementState || '').trim().toLowerCase();
     const shopeeState = String(order.shopeeArrangementState || '').trim().toLowerCase();
-    const arrangementIssue = order.instant && instantState === 'failed'
+    const arrangementIssue = order.instant && String(order.instantArrangementError || '').trim()
       ? String(order.instantArrangementError || '').trim()
       : (['failed', 'label_failed'].includes(shopeeState)
         ? String(order.shopeeArrangementError || '').trim()
@@ -2665,25 +2674,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const arrangeInstantShipment = async (orderId) => {
     const order = state.orders.find((item) => item.id === orderId);
-    if (!order || !order.instant || orderPresentation.isCancellationRequested(order) || !bigSetEnabled) return;
+    if (!order || !order.instant || order.labelBacked || orderPresentation.isCancellationRequested(order) || !bigSetEnabled) return;
+    if (arrangingInstantOrderIds.has(order.id) || (order.locked && !order.currentEmployeeCanWork)) return;
+    arrangingInstantOrderIds.add(order.id);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 100000);
     order.instantArrangementState = 'requested';
     order.instantArrangementError = '';
     saveOrders();
     renderBoard();
     try {
-      const payload = await postOrderAction('arrange_instant_shipment', order);
+      const payload = await postOrderAction('arrange_instant_shipment', order, {}, { signal: controller.signal });
       const arrangement = payload.arrangement && typeof payload.arrangement === 'object' ? payload.arrangement : {};
       order.instantArrangementState = String(arrangement.state || 'requested');
       order.instantArrangementError = String(arrangement.error || '');
       saveOrders();
       renderBoard();
+      clearTimeout(timeout);
+      arrangingInstantOrderIds.delete(order.id);
+      renderBoard();
       await refreshOrders(false, { force: true });
     } catch (error) {
       order.instantArrangementState = 'failed';
-      order.instantArrangementError = error instanceof Error ? error.message : 'Unable to arrange this Instant shipment.';
+      order.instantArrangementError = error?.name === 'AbortError'
+        ? 'The arrangement request timed out. Check the order status or retry.'
+        : (error instanceof Error ? error.message : 'Unable to arrange this Instant shipment.');
       saveOrders();
       renderBoard();
       showBoardAlert(order.instantArrangementError);
+    } finally {
+      clearTimeout(timeout);
+      arrangingInstantOrderIds.delete(order.id);
+      renderBoard();
     }
   };
 

@@ -80,3 +80,5 @@ Operational backend for `store.jenanggemi.com`.
 - To install the IWARE udev rule on the POS, run `sudo scripts/install-iware-scanner-permissions.sh`, reconnect the scanner, then use Store Settings > Scanner > Recheck / Test Scan.
 
 - Login exposes the stable employee ID as the password-manager username. Profile tiles and autofill select the same server-validated employee; unique legacy display-name logins remain accepted. Switching tiles clears the previous account's password. Password approval dialogs also identify the Branch account.
+
+Instant Store Ops requests have unlimited arrangement retries. A queued retry can be expedited by the operator; an active worker retains its lease to avoid duplicate submissions. Marketplace errors remain visible through reconciliation. The Store Ops button shows `Arranging…` only while its own request is in flight, then offers `Retry arrange` or `Retry label` as needed.
