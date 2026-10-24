@@ -26,19 +26,10 @@ function jg_store_ops_shell_attr(array $attributes): string
 
 function jg_store_ops_shell_svg(string $name): string
 {
-    $remoteIcons = [
-        'order-records' => 'https://api.iconify.design/material-symbols:history.svg',
-        'invoice-records' => 'https://api.iconify.design/material-symbols:receipt-long-outline.svg',
-        'invoice-printer' => 'https://api.iconify.design/material-symbols:print-outline.svg',
-    ];
-    if (isset($remoteIcons[$name])) {
-        return sprintf(
-            '<span class="admin-store-nav-internet-icon" style="--admin-store-nav-icon: url(%s);" aria-hidden="true"></span>',
-            htmlspecialchars($remoteIcons[$name], ENT_QUOTES, 'UTF-8')
-        );
-    }
-
     $icons = [
+        'order-records' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/></svg>',
+        'invoice-records' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l2 1 2-1 2 1 2-1 2 1 2-1v18l-2-1-2 1-2-1-2 1-2-1-2 1zM9 8h6M9 12h6M9 16h4"/></svg>',
+        'invoice-printer' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6zM17 12h1"/></svg>',
         'orders' => '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v3h6V3M8 11h8M8 15h6"/></svg>',
         'inventory' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4.4 7.7 12 12l7.6-4.3M12 12v9"/></svg>',
         'stock-adjust' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9v6M11 9v6M14 9v6M17 9v6"/></svg>',
