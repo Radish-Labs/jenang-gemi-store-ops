@@ -67,6 +67,7 @@ $storeScanJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/store-scan.js'
                     </div>
                     <button type="button" data-stock-warning-dismiss>Dismiss and allow scanning</button>
                 </section>
+                <p class="admin-sync-status admin-mobile-scanner-live" data-mobile-scanner-status hidden>Phone scanner connected</p>
                 <p class="admin-sync-status" data-sync-status hidden>Sync pending</p>
                 <p class="admin-form-error" data-scan-error hidden></p>
                 <div class="admin-scan-list" data-scan-list></div>

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const scanSerialEndpoint = '../../api/scan-serial/';
   const skuDbEndpoint = '../../api/sku-db/';
   const ordersEndpoint = '../../api/orders-v2/';
+  const mobileScannerEndpoint = '../../api/mobile-scanner/';
   const scanFlushDelayMs = 30000;
   const orderIdNode = document.querySelector('[data-scan-order-id]');
   const scanError = document.querySelector('[data-scan-error]');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stockWarning = document.querySelector('[data-stock-warning]');
   const stockWarningProducts = document.querySelector('[data-stock-warning-products]');
   const stockWarningDismiss = document.querySelector('[data-stock-warning-dismiss]');
+  const mobileScannerStatus = document.querySelector('[data-mobile-scanner-status]');
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -492,7 +494,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     scanError.hidden = message === '';
   };
 
-  const setScanStatus = (title, detail = '') => {
+  let scanStatusState = { title: '', detail: '', tone: 'info', seq: 0 };
+  const setScanStatus = (title, detail = '', tone = 'info') => {
+    scanStatusState = { title, detail, tone, seq: scanStatusState.seq + 1 };
     if (!scanStatus) return;
     scanStatus.innerHTML = `
       <strong>${escapeHtml(title)}</strong>
@@ -508,7 +512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_error) {
       // Query string still carries the order id.
     }
-    setScanStatus('Scan complete', 'Opening label choices while sync continues in the background.');
+    setScanStatus('Scan complete', 'Opening label choices while sync continues in the background.', 'ok');
+    pollMobileScanner();
     window.setTimeout(() => {
       const account = String(order.sourceAccountKey || order.account_key || '');
       const platform = String(order.platform || '').toLowerCase();
@@ -563,19 +568,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  const handleScan = (value) => {
+  const handleScan = (value, options = {}) => {
     if (!order || !value) return false;
     const scannedCode = skuFromBarcode(value);
     if (!scannedCode) return false;
     if (stockWarningRequiresDismissal()) {
       const message = 'Sold-out product detected. Dismiss the stock warning before scanning.';
       setError(message);
-      setScanStatus('SCAN BLOCKED — SOLD OUT', 'Update PO amount received, or dismiss the warning to continue.');
+      setScanStatus('SCAN BLOCKED — SOLD OUT', 'Update PO amount received, or dismiss the warning to continue.', 'error');
       if (stockWarningDismiss instanceof HTMLButtonElement) stockWarningDismiss.focus();
       return false;
     }
     const now = Date.now();
-    if (lastScanKey === scannedCode && now - lastScanAt < 450) return false;
+    // Phone scans are already one-per-item; only debounce USB/keyboard input.
+    if (!options.fromPhone && lastScanKey === scannedCode && now - lastScanAt < 450) return false;
     lastScanKey = scannedCode;
     lastScanAt = now;
     setScanStatus(`Received ${scannedCode}`, 'Checking this scan against the active order.');
@@ -599,7 +605,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const requiredCount = scanQuantityFor(soldSkuMatch);
         const message = `ASTRA requires ${requiredCount} scan${requiredCount === 1 ? '' : 's'} of ${requiredSku} for this order SKU.`;
         setError(message);
-        setScanStatus('Scan is the order SKU', message);
+        setScanStatus('Scan is the order SKU', message, 'error');
         queueScanEvent({
           type: 'scan_error',
           code: scannedCode,
@@ -610,7 +616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       setError('Barcode not found in this order.');
-      setScanStatus('Scan not found', `${scannedCode} is not required. Expected: ${expectedScanCodes() || 'No active SKU'}.`);
+      setScanStatus('Scan not found', `${scannedCode} is not required. Expected: ${expectedScanCodes() || 'No active SKU'}.`, 'error');
       queueScanEvent({
         type: 'scan_error',
         code: scannedCode,
@@ -622,7 +628,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const matchManualRequired = manualQuantityFor(match);
     if (matchManualRequired <= 0) {
       setError(`${match.scanProductName || match.productName} is set to Skip Scan.`);
-      setScanStatus('Scan skipped', `${match.scanProductName || match.productName} is already counted as scanned.`);
+      setScanStatus('Scan skipped', `${match.scanProductName || match.productName} is already counted as scanned.`, 'error');
       queueScanEvent({
         type: 'scan_error',
         code: scannedCode,
@@ -636,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const current = scanCountFor(matchSku);
     if (current >= matchManualRequired) {
       setError(`${match.scanProductName || match.productName} is already fully scanned.`);
-      setScanStatus('Already complete', `${match.scanProductName || match.productName} does not need more scans.`);
+      setScanStatus('Already complete', `${match.scanProductName || match.productName} does not need more scans.`, 'error');
       queueScanEvent({
         type: 'scan_error',
         code: scannedCode,
@@ -656,7 +662,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       message: `${match.scanProductName || match.productName} accepted`
     });
     render();
-    setScanStatus('Scan accepted', `${match.scanProductName || match.productName} ${skipQuantityFor(match) + current + 1}/${scanQuantityFor(match)}`);
+    setScanStatus('Scan accepted', `${match.scanProductName || match.productName} ${skipQuantityFor(match) + current + 1}/${scanQuantityFor(match)}`, 'ok');
     if (totalRequired() > 0 && totalScanned() >= totalRequired()) {
       maybeOpenPrintLabelPage();
     }
@@ -820,6 +826,114 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (document.visibilityState === 'visible') refreshStockOnResume();
   });
 
+  // Mobile scanner relay: a phone signed in to the same profile can scan for
+  // this page. Its barcodes go through handleScan exactly like USB scans.
+  let mobileSession = '';
+  let mobileAfterId = 0;
+  let mobileTimer = 0;
+  let mobilePolling = false;
+  let mobilePhoneConnected = false;
+  let mobileSentSummary = '';
+
+  const mobileSummary = () => ({
+    scanned: totalScanned(),
+    required: totalRequired(),
+    items: scanItems().map((item) => {
+      const required = scanQuantityFor(item);
+      return {
+        name: String(item.scanProductName || item.productName || scanSkuFor(item)),
+        code: scanSkuFor(item),
+        scanned: skipQuantityFor(item) + Math.min(scanCountFor(scanSkuFor(item)), manualQuantityFor(item), required),
+        required
+      };
+    }),
+    status: scanStatusState
+  });
+
+  const renderMobileScannerStatus = () => {
+    if (!mobileScannerStatus) return;
+    mobileScannerStatus.hidden = !mobileSession || !mobilePhoneConnected;
+  };
+
+  const postMobileScanner = (body, keepalive = false) => fetch(mobileScannerEndpoint, {
+    method: 'POST',
+    cache: 'no-store',
+    credentials: 'same-origin',
+    keepalive,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body)
+  }).then((response) => response.json().then((payload) => {
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Mobile scanner unavailable.');
+    return payload;
+  }));
+
+  const scheduleMobilePoll = () => {
+    window.clearTimeout(mobileTimer);
+    if (!mobileSession || printRedirecting) return;
+    mobileTimer = window.setTimeout(pollMobileScanner, mobilePhoneConnected ? 700 : 3000);
+  };
+
+  async function pollMobileScanner() {
+    if (!mobileSession || mobilePolling) return;
+    mobilePolling = true;
+    let receivedCodes = false;
+    try {
+      const summary = JSON.stringify(mobileSummary());
+      const payload = await postMobileScanner({
+        action: 'poll',
+        session: mobileSession,
+        after: mobileAfterId,
+        summary: summary === mobileSentSummary ? null : JSON.parse(summary)
+      });
+      mobileSentSummary = summary;
+      mobilePhoneConnected = Boolean(payload.phone_connected);
+      if (!payload.active) {
+        // A newer scan page for this profile took over the phone.
+        mobileSession = '';
+      } else {
+        (payload.codes || []).forEach((event) => {
+          mobileAfterId = Math.max(mobileAfterId, Number(event.id || 0));
+          receivedCodes = true;
+          if (!printRedirecting) handleScan(String(event.code || ''), { fromPhone: true });
+        });
+      }
+    } catch (_error) {
+      // Keep the USB scanner working; retry the phone relay later.
+    } finally {
+      mobilePolling = false;
+      renderMobileScannerStatus();
+      // Send the result of new scans back to the phone straight away.
+      if (receivedCodes && mobileSession) {
+        window.setTimeout(pollMobileScanner, 0);
+      } else {
+        scheduleMobilePoll();
+      }
+    }
+  }
+
+  const startMobileScanner = async () => {
+    if (!order) return;
+    try {
+      const summary = mobileSummary();
+      const payload = await postMobileScanner({ action: 'start', order_id: String(order.id || orderId || ''), summary });
+      mobileSession = String(payload.session || '');
+      mobileSentSummary = JSON.stringify(summary);
+      mobilePhoneConnected = Boolean(payload.phone_connected);
+      renderMobileScannerStatus();
+      scheduleMobilePoll();
+    } catch (_error) {
+      mobileSession = '';
+    }
+  };
+
+  const endMobileScanner = () => {
+    window.clearTimeout(mobileTimer);
+    if (!mobileSession) return;
+    const session = mobileSession;
+    mobileSession = '';
+    postMobileScanner({ action: 'end', session }, true).catch(() => {});
+  };
+
   const initialize = async () => {
     applyStockRows(readCachedStockRows());
     refreshStockInBackground();
@@ -838,6 +952,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     restorePendingScanQueue();
     render();
     updateSyncStatus();
+    startMobileScanner();
     if (pendingScanEvents.length || (scanCompletionQueued && !scanCompletedOnServer)) {
       scheduleScanFlush();
     }
@@ -864,6 +979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     flushTimer = 0;
     persistPendingScanQueue();
     window.clearInterval(serverSerialTimer);
+    endMobileScanner();
     if (serialReader) serialReader.cancel().catch(() => {});
     if (serialPort?.readable || serialPort?.writable) serialPort.close().catch(() => {});
   });

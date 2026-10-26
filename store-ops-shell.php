@@ -101,7 +101,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.05.10</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.06.00</div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -197,6 +197,44 @@ function jg_store_ops_shell_open(array $options = []): void
                     <?php endif; ?>
                 </div>
             </header>
+    <?php
+}
+
+function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
+{
+    $mobileScannerSettingsJsVersion = (string) @filemtime(__DIR__ . '/mobile-scanner-settings.js');
+    ?>
+                            <div class="admin-mobile-scanner-settings" data-mobile-scanner-settings data-mobile-scanner-url="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-mobile-scanner-endpoint="<?php echo htmlspecialchars($rootPrefix . 'api/mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="admin-settings-section-head">
+                                    <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg></span>
+                                    <div>
+                                        <h4>Mobile scanner</h4>
+                                        <p>No USB scanner? Use a phone camera instead. The phone scans for whoever is signed in with the same profile.</p>
+                                    </div>
+                                </div>
+                                <div class="admin-scanner-health-actions admin-mobile-scanner-actions">
+                                    <button type="button" class="admin-primary-btn" data-mobile-scanner-open aria-expanded="false">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
+                                        Use mobile scanner
+                                    </button>
+                                </div>
+                                <div class="admin-mobile-scanner-card" data-mobile-scanner-card hidden>
+                                    <div class="admin-mobile-scanner-qr" data-mobile-scanner-qr aria-hidden="true"></div>
+                                    <div class="admin-mobile-scanner-steps">
+                                        <ol>
+                                            <li>Scan this QR code with the phone, or open the link below.</li>
+                                            <li>Sign in with the same profile<strong data-mobile-scanner-profile></strong>.</li>
+                                            <li>Press <strong>Lanjut</strong> on an order here. The phone camera opens and is ready to scan.</li>
+                                        </ol>
+                                        <div class="admin-mobile-scanner-link">
+                                            <code data-mobile-scanner-link></code>
+                                            <button type="button" class="admin-ghost-btn" data-mobile-scanner-copy>Copy link</button>
+                                        </div>
+                                        <p class="admin-mobile-scanner-phone" data-mobile-scanner-phone>Checking for a phone…</p>
+                                    </div>
+                                </div>
+                                <script src="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner-settings.js?v=' . urlencode($mobileScannerSettingsJsVersion ?: '1'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+                            </div>
     <?php
 }
 
@@ -365,6 +403,8 @@ function jg_store_ops_shell_close(): void
                                     Test
                                 </button>
                             </div>
+
+                            <?php jg_store_ops_mobile_scanner_settings_section((string) ($GLOBALS['jg_store_ops_shell_root_prefix'] ?? '../')); ?>
                         </section>
                         <?php jg_store_ops_print_helper_settings_panel((string) ($GLOBALS['jg_store_ops_shell_root_prefix'] ?? '../')); ?>
                     </div>
