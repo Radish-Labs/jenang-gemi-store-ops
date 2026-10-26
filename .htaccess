@@ -1,5 +1,6 @@
 Options -Indexes
 DirectoryIndex index.php index.html
+AddType application/manifest+json .webmanifest
 SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
 
 <FilesMatch "(^\.env$|^\.env\.|\.env$|^config\.(local|runtime)\.php$)">

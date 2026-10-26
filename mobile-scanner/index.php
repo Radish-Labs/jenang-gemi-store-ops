@@ -19,6 +19,12 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
     <meta name="theme-color" content="#0b0c0f">
     <title>Mobile Scanner | Jenang Gemi Store Ops</title>
     <meta name="robots" content="noindex,nofollow">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Scanner">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <?php require dirname(__DIR__) . '/theme-init.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,6 +99,13 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
         .ms-manual { display: flex; gap: 8px; }
         .ms-manual input { flex: 1; min-width: 0; min-height: 44px; border-radius: 12px; border: 1px solid var(--ms-line); background: var(--ms-bg); color: var(--ms-text); padding: 0 12px; font: 500 16px "Plus Jakarta Sans", sans-serif; }
         .ms-error { color: var(--ms-error); font-size: 13px; margin: 0 0 12px; }
+        .ms-install { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+        .ms-install img { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--ms-line); }
+        .ms-install strong { display: block; font-size: 15px; }
+        .ms-install p { margin: 2px 0 0; color: var(--ms-muted); font-size: 13px; line-height: 1.45; }
+        .ms-install p svg { width: 16px; height: 16px; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .ms-install-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+        .ms-btn-ghost { background: transparent; color: var(--ms-muted); border: 1px solid var(--ms-line); }
         [hidden] { display: none !important; }
     </style>
 </head>
@@ -114,6 +127,20 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
             <span>On the computer signed in as this profile, press <b>Lanjut</b> on an order. The camera opens here automatically.</span>
             <div style="margin-top:18px" data-ms-camera-permission hidden>
                 <button type="button" class="ms-btn" data-ms-allow-camera>Allow camera</button>
+            </div>
+        </section>
+
+        <section class="ms-card ms-install" data-ms-install hidden>
+            <img src="icons/icon-192.png" alt="">
+            <div>
+                <strong>Add Scanner to your home screen</strong>
+                <p data-ms-install-text>Open the scanner with one tap every day.</p>
+                <p data-ms-install-ios hidden>Tap <b>Share</b> <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> at the bottom of Safari, then <b>Add to Home Screen</b>.</p>
+                <p data-ms-install-menu hidden>Open the browser menu <b>⋮</b>, then tap <b>Add to Home screen</b> or <b>Install app</b>.</p>
+            </div>
+            <div class="ms-install-actions">
+                <button type="button" class="ms-btn ms-btn-ghost" data-ms-install-dismiss>Not now</button>
+                <button type="button" class="ms-btn" data-ms-install-button hidden>Install app</button>
             </div>
         </section>
 

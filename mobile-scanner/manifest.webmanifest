@@ -1,0 +1,17 @@
+{
+  "id": "/mobile-scanner/",
+  "name": "Store Ops Scanner",
+  "short_name": "Scanner",
+  "description": "Jenang Gemi Store Ops phone barcode scanner.",
+  "start_url": "/mobile-scanner/?source=app",
+  "scope": "/mobile-scanner/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c0f",
+  "theme_color": "#0b0c0f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

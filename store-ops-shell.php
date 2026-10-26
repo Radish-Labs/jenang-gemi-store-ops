@@ -101,7 +101,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.06.00</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build 1.06.01</div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -224,6 +224,7 @@ function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
                                         <ol>
                                             <li>Scan this QR code with the phone, or open the link below.</li>
                                             <li>Sign in with the same profile<strong data-mobile-scanner-profile></strong>.</li>
+                                            <li>Tap <strong>Install app</strong> on the phone (iPhone: Share, then Add to Home Screen) so it opens with one tap every day.</li>
                                             <li>Press <strong>Lanjut</strong> on an order here. The phone camera opens and is ready to scan.</li>
                                         </ol>
                                         <div class="admin-mobile-scanner-link">

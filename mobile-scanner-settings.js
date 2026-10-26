@@ -36,7 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const qr = window.qrcode(0, 'M');
       qr.addData(url);
       qr.make();
-      qrNode.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      // A 4-module white margin (quiet zone) is required for phone cameras.
+      qrNode.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 16, scalable: true });
+      qrNode.querySelector('svg')?.setAttribute('shape-rendering', 'crispEdges');
       qrRendered = true;
     } catch (_error) {
       qrNode.textContent = 'Open the link below on the phone.';

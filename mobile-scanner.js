@@ -26,6 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const itemsNode = $('[data-ms-items]');
   const manualForm = $('[data-ms-manual]');
   const manualInput = $('[data-ms-manual-input]');
+  const installNode = $('[data-ms-install]');
+  const installButton = $('[data-ms-install-button]');
+  const installDismiss = $('[data-ms-install-dismiss]');
+  const installText = $('[data-ms-install-text]');
+  const installIos = $('[data-ms-install-ios]');
+  const installMenu = $('[data-ms-install-menu]');
+  const installDismissKey = 'jg-mobile-scanner-install-dismissed-at';
 
   let session = '';
   let pollTimer = 0;
@@ -41,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastStatusSeq = -1;
   let wakeLock = null;
   let audioContext = null;
+  let installPrompt = null;
+  let installOffered = false;
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -282,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       activeNode.hidden = true;
       waitingNode.hidden = false;
+      renderInstall();
       return;
     }
     if (state.session !== session) {
@@ -293,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     waitingNode.hidden = true;
     activeNode.hidden = false;
+    renderInstall();
     orderNode.textContent = state.order_id || 'Order';
     renderSummary(state.summary);
     startCamera();
@@ -368,6 +379,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   window.addEventListener('pagehide', stopCamera);
+
+  // Home screen app ---------------------------------------------------------
+  const isInstalled = () => window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const installDismissedRecently = () => {
+    try {
+      const at = Number(window.localStorage.getItem(installDismissKey) || 0);
+      return Date.now() - at < 7 * 24 * 60 * 60 * 1000;
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  function renderInstall() {
+    installNode.hidden = !installOffered || Boolean(session) || isInstalled() || installDismissedRecently();
+  }
+
+  const offerInstall = (mode) => {
+    installOffered = true;
+    installButton.hidden = mode !== 'prompt';
+    installIos.hidden = mode !== 'ios';
+    installMenu.hidden = mode !== 'menu';
+    installText.hidden = mode === 'ios' || mode === 'menu';
+    renderInstall();
+  };
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    offerInstall('prompt');
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    installNode.hidden = true;
+  });
+
+  installButton.addEventListener('click', async () => {
+    if (!installPrompt) return;
+    const prompt = installPrompt;
+    installPrompt = null;
+    prompt.prompt();
+    const choice = await prompt.userChoice.catch(() => null);
+    if (choice?.outcome !== 'accepted') offerInstall('menu');
+    else installNode.hidden = true;
+  });
+
+  installDismiss.addEventListener('click', () => {
+    try { window.localStorage.setItem(installDismissKey, String(Date.now())); } catch (_error) { /* Optional. */ }
+    installNode.hidden = true;
+  });
+
+  if (!isInstalled()) {
+    if (isIos()) {
+      offerInstall('ios');
+    } else {
+      // Browsers without an install prompt still have "Add to Home screen".
+      window.setTimeout(() => { if (!installPrompt) offerInstall('menu'); }, 2500);
+    }
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
+  }
 
   checkPermission();
   keepAwake();
