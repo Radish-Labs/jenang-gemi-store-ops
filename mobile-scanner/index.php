@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth-runtime.php';
+require dirname(__DIR__) . '/store-ops-version.php';
 
 if (!jg_admin_is_authenticated()) {
     header('Location: ../?return=mobile-scanner/');
@@ -64,6 +65,7 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
         .ms-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
         .ms-head h1 { font: 700 18px/1.2 "Space Grotesk", sans-serif; margin: 0; }
         .ms-head small { display: block; color: var(--ms-muted); font-size: 12px; margin-top: 2px; }
+        .ms-head .ms-build { font: 500 11px/1.2 "Space Grotesk", sans-serif; letter-spacing: .04em; opacity: .8; }
         .ms-head a { color: var(--ms-muted); font-size: 12px; text-decoration: none; border: 1px solid var(--ms-line); border-radius: 999px; padding: 6px 10px; white-space: nowrap; }
         .ms-card { background: var(--ms-card); border: 1px solid var(--ms-line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
         .ms-wait { text-align: center; padding: 32px 18px; }
@@ -115,6 +117,7 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
             <div>
                 <h1>Mobile scanner</h1>
                 <small>Signed in as <b data-ms-profile><?php echo htmlspecialchars($employeeName !== '' ? $employeeName : 'Store Ops', ENT_QUOTES, 'UTF-8'); ?></b></small>
+                <small class="ms-build">Build <?php echo htmlspecialchars(JG_STORE_OPS_BUILD, ENT_QUOTES, 'UTF-8'); ?></small>
             </div>
             <a href="../logout/">Switch profile</a>
         </header>

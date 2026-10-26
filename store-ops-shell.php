@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/store-ops-version.php';
 require_once __DIR__ . '/auth-runtime.php';
 
 function jg_store_ops_shell_attr(array $attributes): string
@@ -101,7 +102,7 @@ function jg_store_ops_shell_open(array $options = []): void
         'data-scan-serial-endpoint' => $rootPrefix . 'api/scan-serial/',
     ], $appAttributes);
     ?>
-    <div class="admin-build-badge" aria-label="Store build version">Build 1.06.04</div>
+    <div class="admin-build-badge" aria-label="Store build version">Build <?php echo htmlspecialchars(JG_STORE_OPS_BUILD, ENT_QUOTES, 'UTF-8'); ?></div>
     <div<?php echo jg_store_ops_shell_attr($attributes); ?>>
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>

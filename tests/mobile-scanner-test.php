@@ -22,12 +22,22 @@ foreach ($statements[1] as $sql) {
     mobile_scanner_expect([], $repeated, 'MySQL native prepares reject repeated placeholders: ' . trim(preg_replace('/\s+/', ' ', $sql)));
 }
 
-if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+// Set JG_TEST_MYSQL_DSN (plus _USER/_PASSWORD) to run against MySQL/MariaDB
+// with the same options as production (see sku-db-bootstrap.php).
+$mysqlDsn = (string) getenv('JG_TEST_MYSQL_DSN');
+if ($mysqlDsn !== '') {
+    $pdo = new PDO($mysqlDsn, (string) getenv('JG_TEST_MYSQL_USER'), (string) getenv('JG_TEST_MYSQL_PASSWORD'), [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $pdo->exec('DROP TABLE IF EXISTS store_ops_mobile_scanner_events_v1, store_ops_mobile_scanner_v1');
+} elseif (in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+    $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+} else {
     echo "mobile-scanner-test: skipped (no pdo_sqlite)\n";
     exit(0);
 }
-
-$pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 jg_mobile_scanner_ensure_schema($pdo);
 jg_mobile_scanner_ensure_schema($pdo); // Idempotent.
 $now = 1_800_000_000;
@@ -92,4 +102,4 @@ try {
     // Expected.
 }
 
-echo "mobile-scanner-test: ok\n";
+echo "mobile-scanner-test: ok (" . $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) . ")\n";

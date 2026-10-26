@@ -1,6 +1,8 @@
 # Jenang Gemi Store Ops Versioning
 
-Current store version: `1.06.04`
+Current store version: `1.06.05`
+
+The build number shown in the app lives in `store-ops-version.php` (`JG_STORE_OPS_BUILD`). Update it there and here.
 
 Versioning rule:
 - Default behavior: increment the last two digits by `+1`.
