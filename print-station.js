@@ -149,6 +149,20 @@ document.addEventListener('DOMContentLoaded', () => {
       handoff: taken.handoff,
       station: '1'
     });
+    // Taps on the phone (Printed successfully / Print again) for this job.
+    const thisJob = taken.job;
+    (async () => {
+      while (activeJob === thisJob) {
+        try {
+          const waited = await post({ action: 'station_command', job: thisJob, wait: 10 });
+          if (waited.command && activeJob === thisJob && frame) {
+            frame.contentWindow?.postMessage({ source: 'jg-print-station-command', command: waited.command }, window.location.origin);
+          }
+        } catch (_error) {
+          await sleep(1500);
+        }
+      }
+    })();
     frame = document.createElement('iframe');
     frame.title = 'Shipping label for the phone order';
     frame.dataset.printStationFrame = '';

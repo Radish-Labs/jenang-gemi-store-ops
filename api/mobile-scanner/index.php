@@ -135,6 +135,14 @@ try {
             }
             jg_mobile_scanner_respond(['ok' => true, 'taken' => true, 'job' => $taken['job'], 'handoff' => $handoff,
                 'for_name' => $actAs['name'] ?? ''] + $taken['key']);
+        case 'print_command':
+            jg_mobile_scanner_respond(['ok' => true, 'sent' => jg_mobile_print_command(
+                $pdo, $employeeId, (int) ($payload['job'] ?? 0), (string) ($payload['command'] ?? ''), $now
+            )]);
+        case 'station_command':
+            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_command_wait(
+                $pdo, (int) ($payload['job'] ?? 0), (float) ($payload['wait'] ?? 0)
+            ));
         case 'station_status':
             jg_mobile_scanner_respond(['ok' => true, 'updated' => jg_mobile_print_set_status(
                 $pdo, (int) ($payload['job'] ?? 0), (string) ($payload['status'] ?? ''), (string) ($payload['detail'] ?? ''), $now

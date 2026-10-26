@@ -37,6 +37,15 @@ function jg_mobile_print_ensure_schema(PDO $pdo): void
     if ($isSqlite) {
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_store_ops_mobile_print_jobs_queue ON store_ops_mobile_print_jobs_v1 (employee_id, status, id)');
     }
+    // A tap on the phone (Printed successfully / Print again) waiting for the
+    // computer that holds the job's label page.
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS store_ops_mobile_print_commands_v1 (
+            job_id ' . ($isSqlite ? 'INTEGER' : 'BIGINT UNSIGNED') . ' NOT NULL PRIMARY KEY,
+            command VARCHAR(16) NOT NULL,
+            created_at INTEGER NOT NULL
+        )' . $tableSuffix
+    );
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS store_ops_mobile_print_stations_v1 (
             employee_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -235,5 +244,51 @@ function jg_mobile_print_job_wait(PDO $pdo, string $employeeId, int $jobId, stri
         $state = jg_mobile_print_job_state($pdo, $employeeId, $jobId, $now);
         $state['signature'] = implode('|', [$state['status'], $state['detail'], $state['station_online'] ? '1' : '0']);
         return [$state['signature'] !== $known, $state];
+    }, $waitSeconds);
+}
+
+/**
+ * Phone: "confirm" (Printed successfully) or "reprint" (Print again) for its
+ * own job while the computer still has the label open.
+ */
+function jg_mobile_print_command(PDO $pdo, string $employeeId, int $jobId, string $command, int $now): bool
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    if (!in_array($command, ['confirm', 'reprint'], true)) {
+        throw new InvalidArgumentException('Unknown print command.');
+    }
+    $row = jg_mobile_print_job_row($pdo, $employeeId, $jobId);
+    if ($row === null || !in_array((string) $row['status'], ['taken', 'printing', 'attention', 'confirm'], true)) {
+        return false;
+    }
+    $pdo->prepare('DELETE FROM store_ops_mobile_print_commands_v1 WHERE job_id = :job_id OR created_at < :old')
+        ->execute([':job_id' => $jobId, ':old' => $now - JG_MOBILE_PRINT_JOB_TTL_SECONDS]);
+    $pdo->prepare('INSERT INTO store_ops_mobile_print_commands_v1 (job_id, command, created_at) VALUES (:job_id, :command, :created_at)')
+        ->execute([':job_id' => $jobId, ':command' => $command, ':created_at' => $now]);
+    return true;
+}
+
+/**
+ * Computer: the phone's latest tap for this job, removed once read.
+ */
+function jg_mobile_print_command_take(PDO $pdo, int $jobId): string
+{
+    $stmt = $pdo->prepare('SELECT command FROM store_ops_mobile_print_commands_v1 WHERE job_id = :job_id LIMIT 1');
+    $stmt->execute([':job_id' => $jobId]);
+    $command = $stmt->fetchColumn();
+    if ($command === false) {
+        return '';
+    }
+    $delete = $pdo->prepare('DELETE FROM store_ops_mobile_print_commands_v1 WHERE job_id = :job_id AND command = :command');
+    $delete->execute([':job_id' => $jobId, ':command' => $command]);
+    // Another tab read it first.
+    return $delete->rowCount() === 1 ? (string) $command : '';
+}
+
+function jg_mobile_print_command_wait(PDO $pdo, int $jobId, float $waitSeconds): array
+{
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $jobId): array {
+        $command = jg_mobile_print_command_take($pdo, $jobId);
+        return [$command !== '', ['command' => $command]];
     }, $waitSeconds);
 }

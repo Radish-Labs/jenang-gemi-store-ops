@@ -86,6 +86,8 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
                     <strong data-remote-print-title>Sending to the computer…</strong>
                     <p data-remote-print-detail>The label prints on the packing computer.</p>
                     <div class="admin-remote-print-actions">
+                        <button type="button" class="admin-primary-btn" data-remote-print-confirm hidden>Printed successfully</button>
+                        <button type="button" class="admin-ghost-btn" data-remote-print-again hidden>Print again</button>
                         <button type="button" class="admin-primary-btn" data-remote-print-retry hidden>Send again</button>
                         <a class="admin-ghost-btn" href="../" data-remote-print-back>Back to orders</a>
                     </div>

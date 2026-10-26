@@ -767,18 +767,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const detail = remotePanel?.querySelector('[data-remote-print-detail]');
     const icon = remotePanel?.querySelector('[data-remote-print-icon]');
     const retry = remotePanel?.querySelector('[data-remote-print-retry]');
+    const confirmHere = remotePanel?.querySelector('[data-remote-print-confirm]');
+    const againHere = remotePanel?.querySelector('[data-remote-print-again]');
     root.querySelectorAll('.admin-label-option-grid, .admin-label-preview, .admin-label-print-confirmation, .admin-label-print-done, .admin-label-browser-print')
       .forEach((node) => { node.hidden = true; node.style.display = 'none'; });
     if (remotePanel) remotePanel.hidden = false;
     let job = 0;
     let known = '';
     let run = 0;
-    const show = (heading, text, tone = 'info', canRetry = false) => {
+    const show = (heading, text, tone = 'info', canRetry = false, controls = '') => {
       if (title) title.textContent = heading;
       if (detail) detail.textContent = text;
       if (remotePanel) remotePanel.dataset.tone = tone;
       if (icon) icon.textContent = tone === 'ok' ? '✓' : (tone === 'error' ? '!' : '');
       if (retry) retry.hidden = !canRetry;
+      if (confirmHere) { confirmHere.hidden = controls !== 'confirm'; confirmHere.disabled = false; }
+      if (againHere) { againHere.hidden = !controls; againHere.disabled = false; }
       if (statusNode) statusNode.textContent = heading;
     };
     const render = (state) => {
@@ -795,10 +799,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           show('Printing on the computer…', state.detail || 'The label is being printed.');
           return false;
         case 'attention':
-          show('Printer needs attention', state.detail || 'Check the printer at the computer.', 'error');
+          show('Printer needs attention', state.detail || 'Check the printer at the computer.', 'error', false, 'again');
           return false;
         case 'confirm':
-          show('Confirm at the computer', 'Check the label, then press Printed successfully on the computer.');
+          show('Check the label', 'Did it print correctly? Answer here or on the computer.', 'info', false, 'confirm');
           return false;
         case 'printed':
           show('Printed', 'Order complete. Back to the orders…', 'ok');
@@ -851,6 +855,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
     retry?.addEventListener('click', send);
+    const command = async (name, button) => {
+      if (!job || !button) return;
+      button.disabled = true;
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ action: 'print_command', job, command: name })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false || !payload.sent) throw new Error(payload.error || 'The computer has moved on.');
+        if (detail) detail.textContent = name === 'confirm' ? 'Saving…' : 'Printing again…';
+      } catch (error) {
+        button.disabled = false;
+        if (detail) detail.textContent = error instanceof Error ? error.message : 'Unable to reach Store Ops.';
+      }
+    };
+    confirmHere?.addEventListener('click', () => command('confirm', confirmHere));
+    againHere?.addEventListener('click', () => command('reprint', againHere));
     send();
   };
 
@@ -883,6 +907,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   confirmPrintedButton?.addEventListener('click', closeConfirmedPrintTab);
+
+  // Print station: the phone pressed Printed successfully or Print again.
+  if (stationMode) {
+    window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      const message = event.data || {};
+      if (message.source !== 'jg-print-station-command') return;
+      if (message.command === 'confirm') {
+        if (confirmPrintedButton instanceof HTMLButtonElement && !confirmPrintedButton.disabled
+          && confirmationNode && !confirmationNode.hidden) confirmPrintedButton.click();
+      } else if (message.command === 'reprint' && !printClosing) {
+        window.clearTimeout(closeTimer);
+        if (helperAvailable) requestHelperPrint();
+        else printLabel();
+      }
+    });
+  }
 
   printAgainButton?.addEventListener('click', () => {
     window.clearTimeout(closeTimer);

@@ -62,7 +62,15 @@ mobile_print_expect('missing', jg_mobile_print_job_state($pdo, 'hani', $budiJob[
 mobile_print_expect(true, jg_mobile_print_set_status($pdo, $request['job'], 'attention', 'Out of labels', $now + 2), 'Progress can be reported.');
 $state = jg_mobile_print_job_state($pdo, 'hani', $request['job'], $now + 2);
 mobile_print_expect(['attention', 'Out of labels', true], [$state['status'], $state['detail'], $state['station_online']], 'The phone sees the printer problem.');
+// Taps on the phone reach the computer once, and only for its own open job.
+mobile_print_expect(true, jg_mobile_print_command($pdo, 'hani', $request['job'], 'confirm', $now + 2), 'The phone can press Printed successfully.');
+mobile_print_expect(false, jg_mobile_print_command($pdo, 'budi', $request['job'], 'confirm', $now + 2), 'Another profile cannot.');
+mobile_print_expect('confirm', jg_mobile_print_command_take($pdo, $request['job']), 'The computer receives it.');
+mobile_print_expect('', jg_mobile_print_command_take($pdo, $request['job']), 'Exactly once.');
+mobile_print_expect(true, jg_mobile_print_command($pdo, 'hani', $request['job'], 'reprint', $now + 2), 'The phone can press Print again.');
+mobile_print_expect('reprint', jg_mobile_print_command_take($pdo, $request['job']), 'The computer receives Print again.');
 mobile_print_expect(true, jg_mobile_print_set_status($pdo, $request['job'], 'printed', '', $now + 3), 'Printed can be reported.');
+mobile_print_expect(false, jg_mobile_print_command($pdo, 'hani', $request['job'], 'reprint', $now + 3), 'A printed job takes no more taps.');
 mobile_print_expect(false, jg_mobile_print_set_status($pdo, $request['job'], 'failed', 'late', $now + 4), 'A printed job cannot be changed afterwards.');
 mobile_print_expect('printed', jg_mobile_print_job_state($pdo, 'hani', $request['job'], $now + 4)['status'], 'Printed stays printed.');
 try {
