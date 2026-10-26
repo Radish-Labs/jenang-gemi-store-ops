@@ -107,6 +107,11 @@ try {
         case 'print_request':
             $order = is_array($payload['order'] ?? null) ? $payload['order'] : [];
             $key = jg_mobile_print_verified_key($pdo, $order, $employeeId);
+            // Turn and size chosen on the phone; the computer prints with them.
+            unset($order['print_layout']);
+            if (is_array($payload['layout'] ?? null)) {
+                $order['print_layout'] = jg_mobile_print_clean_layout($payload['layout']);
+            }
             jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_request($pdo, $employeeId, $order, $key, $now));
         case 'station_wait':
             jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_station_wait($pdo, $employeeId, (float) ($payload['wait'] ?? 0)));

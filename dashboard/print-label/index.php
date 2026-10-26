@@ -81,6 +81,25 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
                     <button type="button" class="admin-ghost-btn" data-print-again>Print again</button>
                 </section>
                 <button type="button" class="admin-ghost-btn admin-label-browser-print" data-print-browser-fallback hidden>Use the browser print dialog</button>
+                <section class="admin-remote-layout" data-remote-layout hidden>
+                    <div class="admin-remote-layout-preview">
+                        <canvas data-remote-layout-canvas aria-label="Label preview" hidden></canvas>
+                        <p data-remote-layout-note>Loading the label…</p>
+                    </div>
+                    <div class="admin-remote-layout-controls">
+                        <button type="button" class="admin-ghost-btn" data-remote-layout-rotate>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+                            Rotate
+                        </button>
+                        <div class="admin-remote-layout-size" role="group" aria-label="Label size">
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-smaller aria-label="Smaller">−</button>
+                            <output data-remote-layout-size>Original</output>
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-larger aria-label="Larger">+</button>
+                        </div>
+                        <button type="button" class="admin-ghost-btn" data-remote-layout-reset hidden>Reset</button>
+                    </div>
+                    <button type="button" class="admin-primary-btn admin-remote-layout-send" data-remote-layout-send>Print on computer</button>
+                </section>
                 <section class="admin-remote-print" data-remote-print aria-live="polite" hidden>
                     <span class="admin-remote-print-icon" data-remote-print-icon aria-hidden="true"></span>
                     <strong data-remote-print-title>Sending to the computer…</strong>

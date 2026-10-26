@@ -13617,3 +13617,34 @@ html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-st
 @keyframes admin-app-promo-pulse { 50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); } }
 @media (prefers-reduced-motion: reduce) { .admin-store-app-promo-dot { animation: none; } }
 .admin-store-nav-item[hidden] { display: none; }
+
+/* Phone: check and fix the label before it prints on the computer. */
+.admin-remote-layout { display: grid; gap: 12px; margin-top: 12px; }
+.admin-remote-layout[hidden] { display: none; }
+.admin-remote-layout-preview {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-soft);
+}
+.admin-remote-layout-preview canvas[hidden] { display: none; }
+.admin-remote-layout-preview canvas {
+  display: block;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.admin-remote-layout-preview p { margin: 0; font-size: 13px; color: var(--admin-muted); text-align: center; }
+.admin-remote-layout-preview p[hidden] { display: none; }
+.admin-remote-layout-controls { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.admin-remote-layout-controls .admin-ghost-btn[hidden] { display: none; }
+.admin-remote-layout-controls svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.admin-remote-layout-controls .admin-ghost-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.admin-remote-layout-size { display: inline-flex; align-items: center; gap: 6px; }
+.admin-remote-layout-size .admin-ghost-btn { min-width: 44px; justify-content: center; font-size: 20px; padding-inline: 0; }
+.admin-remote-layout-size output { min-width: 70px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.admin-remote-layout-send { min-height: 52px; width: 100%; justify-content: center; font-size: 16px; }

@@ -41,7 +41,21 @@ const pdfWithPages = async (sizes, rotation = 0) => {
     assert.ok(Math.abs(width - labelWidth) < 0.01 && Math.abs(height - labelHeight) < 0.01, 'each page becomes label-sized');
   });
 
-  assert.match(labelScript, /const blob = await labelSizedBlob\(await response\.blob\(\)\);/, 'the preview and the printer both receive the label-sized PDF');
+  assert.match(labelScript, /const blob = await preparedLabelBlob\(await fetchLabelBlob\(\)\);/, 'the preview and the printer both receive the prepared PDF');
+  assert.match(labelScript, /const preparedLabelBlob = async \(raw, layout = chosenLayout\) => \{[\s\S]*?applyLayout[\s\S]*?return labelSizedBlob\(raw\);/, 'without a phone layout the label-sized PDF is used');
+
+  // Layout chosen on the phone: turn clockwise and size, always label-sized.
+  const { cleanLayout, isDefaultLayout, applyLayout } = global.JGStoreOpsLabelReshape;
+  assert.deepEqual(cleanLayout({ rotate: -90, size: 400 }), { rotate: 270, size: 150 }, 'turns wrap and sizes are capped');
+  assert.deepEqual(cleanLayout(null), { rotate: 0, size: 100 }, 'no layout means unchanged');
+  assert.equal(isDefaultLayout({ rotate: 360, size: 100 }), true, 'a full turn is unchanged');
+  for (const rotate of [0, 90, 180, 270]) {
+    const laidOut = await PDFLib.PDFDocument.load(await applyLayout(await pdfWithPages([[mm(210), mm(297)]], 90), { rotate, size: 80 }, PDFLib));
+    const [page] = laidOut.getPages();
+    const { width, height } = page.getSize();
+    assert.ok(Math.abs(width - labelWidth) < 0.01 && Math.abs(height - labelHeight) < 0.01, `a ${rotate} degree layout is label-sized`);
+    assert.equal(page.getRotation().angle, 0, 'the turn is drawn in, not left to the printer');
+  }
   assert.match(labelScript, /const labelSizedBlob = async \(blob\) => \{[\s\S]*?if \(!hasUploadedLabel \|\| !labelReshape\) return blob;[\s\S]*?catch \(_error\) \{[\s\S]*?return blob;/, 'marketplace labels and unreadable uploads print unchanged');
   const uploadedLabel = new Function('order', 'orderId', `${labelScript.match(/const uploadedLabelPlatforms = [\s\S]*?orderId\);/)[0]} return hasUploadedLabel;`);
   assert.equal(uploadedLabel({ platform: 'whatsapp' }, 'WAEXEC-1'), true, 'a WhatsApp order prints a courier label');

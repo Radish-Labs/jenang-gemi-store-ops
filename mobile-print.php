@@ -85,6 +85,20 @@ function jg_mobile_print_station_seen(PDO $pdo, string $employeeId, int $now): v
 }
 
 /**
+ * The phone's label layout: turn clockwise (0/90/180/270) and size (50-150,
+ * 100 fills the label). Same rules as label-reshape.js cleanLayout().
+ *
+ * @return array{rotate:int,size:int}
+ */
+function jg_mobile_print_clean_layout(array $layout): array
+{
+    $rotate = (int) (round(((float) ($layout['rotate'] ?? 0)) / 90) * 90);
+    $rotate = (($rotate % 360) + 360) % 360;
+    $size = (int) round((float) ($layout['size'] ?? 100));
+    return ['rotate' => $rotate, 'size' => max(50, min(150, $size))];
+}
+
+/**
  * Phone: queue the scanned order for printing on the computer. Replaces any
  * unfinished job for the same order so a retry never prints twice.
  *

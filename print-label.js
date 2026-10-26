@@ -698,8 +698,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
-  const loadLabel = async () => {
-    if (!order) return;
+  // The label as the source sends it.
+  const fetchLabelBlob = async () => {
     const platform = platformLabel(order.platform);
     if (statusNode) statusNode.textContent = `Fetching ${platform} label`;
     const sourcePlatform = normalizeSourceKey(order?.platform || 'shopee');
@@ -720,7 +720,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       throw new Error(message);
     }
 
-    const blob = await labelSizedBlob(await response.blob());
+    return response.blob();
+  };
+
+  // A layout chosen on the phone (turn, size) replaces the automatic reshape.
+  const chosenLayout = order?.print_layout || null;
+  const preparedLabelBlob = async (raw, layout = chosenLayout) => {
+    const labelReshape = window.JGStoreOpsLabelReshape || null;
+    if (layout && labelReshape && !labelReshape.isDefaultLayout(layout)) {
+      return new Blob([await labelReshape.applyLayout(await raw.arrayBuffer(), layout)], { type: 'application/pdf' });
+    }
+    return labelSizedBlob(raw);
+  };
+
+  const loadLabel = async () => {
+    if (!order) return;
+    const blob = await preparedLabelBlob(await fetchLabelBlob());
     labelBlob = blob;
     if (labelUrl) URL.revokeObjectURL(labelUrl);
     labelUrl = URL.createObjectURL(blob);
@@ -775,6 +790,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let job = 0;
     let known = '';
     let run = 0;
+    // Turn and size picked on the preview; null prints the label as it comes.
+    let layout = null;
     const show = (heading, text, tone = 'info', canRetry = false, controls = '') => {
       if (title) title.textContent = heading;
       if (detail) detail.textContent = text;
@@ -843,7 +860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ action: 'print_request', order })
+          body: JSON.stringify({ action: 'print_request', order, ...(layout ? { layout } : {}) })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to reach Store Ops.');
@@ -875,8 +892,110 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     confirmHere?.addEventListener('click', () => command('confirm', confirmHere));
     againHere?.addEventListener('click', () => command('reprint', againHere));
-    send();
+    chooseLayout().then((chosen) => {
+      layout = chosen || null;
+      send();
+    });
   };
+
+  // Phone: preview the label and fix its turn and size before it is sent.
+  // The preview is the exact PDF the computer will print.
+  const pdfJsUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const pdfJsWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const loadPdfJs = () => new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
+    const script = document.createElement('script');
+    script.src = pdfJsUrl;
+    script.onload = () => {
+      if (!window.pdfjsLib) { reject(new Error('Preview unavailable.')); return; }
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = pdfJsWorkerUrl;
+      resolve(window.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error('Preview unavailable.'));
+    document.head.appendChild(script);
+  });
+
+  const chooseLayout = () => new Promise((resolve) => {
+    const section = document.querySelector('[data-remote-layout]');
+    const canvas = section?.querySelector('[data-remote-layout-canvas]');
+    const note = section?.querySelector('[data-remote-layout-note]');
+    const sizeNode = section?.querySelector('[data-remote-layout-size]');
+    const resetButton = section?.querySelector('[data-remote-layout-reset]');
+    const controls = section ? [...section.querySelectorAll('[data-remote-layout-rotate], [data-remote-layout-smaller], [data-remote-layout-larger], [data-remote-layout-reset]')] : [];
+    const reshape = window.JGStoreOpsLabelReshape || null;
+    if (!section || !(canvas instanceof HTMLCanvasElement) || !reshape) { resolve(null); return; }
+    if (remotePanel) remotePanel.hidden = true;
+    section.hidden = false;
+    if (statusNode) statusNode.textContent = 'Check the label';
+    let raw = null;
+    let pdfjs = null;
+    let current = { rotate: 0, size: 100 };
+    let edited = false;
+    let drawRun = 0;
+    const setControls = (enabled) => controls.forEach((button) => { button.disabled = !enabled; });
+    setControls(false);
+
+    const draw = async () => {
+      const thisDraw = ++drawRun;
+      if (sizeNode) sizeNode.textContent = edited ? `${current.size}%` : 'Original';
+      if (resetButton) resetButton.hidden = !edited;
+      try {
+        const blob = await preparedLabelBlob(raw, edited ? current : null);
+        const data = new Uint8Array(await blob.arrayBuffer());
+        const doc = await pdfjs.getDocument({ data }).promise;
+        const page = await doc.getPage(1);
+        if (thisDraw !== drawRun) return;
+        const base = page.getViewport({ scale: 1 });
+        const ratio = window.devicePixelRatio || 1;
+        const width = Math.min(section.clientWidth || 320, 360);
+        const viewport = page.getViewport({ scale: (width * ratio) / base.width });
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        canvas.style.width = `${Math.round(viewport.width / ratio)}px`;
+        canvas.style.height = `${Math.round(viewport.height / ratio)}px`;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        if (thisDraw !== drawRun) return;
+        canvas.hidden = false;
+        section.dataset.drawn = String(thisDraw);
+        if (note) {
+          note.textContent = doc.numPages > 1 ? `Page 1 of ${doc.numPages}. Every page prints the same way.` : '';
+          note.hidden = doc.numPages <= 1;
+        }
+      } catch (_error) {
+        if (thisDraw !== drawRun) return;
+        if (note) { note.hidden = false; note.textContent = 'The preview could not be drawn. The label can still be printed.'; }
+      }
+    };
+    const change = (next) => {
+      current = reshape.cleanLayout(next);
+      edited = !reshape.isDefaultLayout(current);
+      draw();
+    };
+    section.querySelector('[data-remote-layout-rotate]')?.addEventListener('click', () => change({ ...current, rotate: current.rotate + 90 }));
+    section.querySelector('[data-remote-layout-smaller]')?.addEventListener('click', () => change({ ...current, size: current.size - 5 }));
+    section.querySelector('[data-remote-layout-larger]')?.addEventListener('click', () => change({ ...current, size: current.size + 5 }));
+    resetButton?.addEventListener('click', () => change({ rotate: 0, size: 100 }));
+    section.querySelector('[data-remote-layout-send]')?.addEventListener('click', () => {
+      drawRun += 1;
+      section.hidden = true;
+      if (remotePanel) remotePanel.hidden = false;
+      resolve(edited ? { ...current } : null);
+    }, { once: true });
+
+    (async () => {
+      try {
+        [raw, pdfjs] = await Promise.all([fetchLabelBlob(), loadPdfJs()]);
+        if (statusNode) statusNode.textContent = 'Check the label';
+        setControls(true);
+        await draw();
+      } catch (error) {
+        if (note) {
+          note.hidden = false;
+          note.textContent = `${error instanceof Error ? error.message : 'The label could not be loaded.'} You can still print it on the computer as it comes.`;
+        }
+      }
+    })();
+  });
 
   renderOptions();
   if (order && remotePrint) {

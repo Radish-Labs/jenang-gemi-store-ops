@@ -45,5 +45,58 @@
     return output.save();
   };
 
-  global.JGStoreOpsLabelReshape = { labelWidth, labelHeight, pageFitsLabel, placement, reshape };
+  // Layout chosen on the phone: turn the label clockwise and size it, on a
+  // 100 x 150 mm page. size 100 fills the label edge to edge (keeping its
+  // shape); smaller leaves a border. The phone previews exactly this PDF and
+  // the computer prints the same, so what the phone shows is what prints.
+  const cleanLayout = (layout) => {
+    const rotate = ((Math.round(Number(layout?.rotate || 0) / 90) * 90) % 360 + 360) % 360;
+    const size = Math.min(150, Math.max(50, Math.round(Number(layout?.size || 100))));
+    return { rotate, size };
+  };
+  const isDefaultLayout = (layout) => {
+    const clean = cleanLayout(layout);
+    return clean.rotate === 0 && clean.size === 100;
+  };
+
+  const applyLayout = async (bytes, layout, pdfLib = global.PDFLib) => {
+    if (!pdfLib) throw new Error('Label tools are unavailable.');
+    const { rotate, size } = cleanLayout(layout);
+    const source = await pdfLib.PDFDocument.load(bytes);
+    const pages = source.getPages();
+    if (pages.length === 0) throw new Error('The label has no pages.');
+    const output = await pdfLib.PDFDocument.create();
+    const embedded = await output.embedPages(pages);
+    embedded.forEach((page, index) => {
+      // Shown turn = the page's own /Rotate plus the phone's; drawPage turns
+      // counterclockwise, so use the opposite angle.
+      const shown = (pages[index].getRotation().angle + rotate) % 360;
+      const angle = (360 - ((shown % 360) + 360) % 360) % 360;
+      const sideways = angle % 180 !== 0;
+      const boxWidth = sideways ? page.height : page.width;
+      const boxHeight = sideways ? page.width : page.height;
+      const scale = Math.min(labelWidth / boxWidth, labelHeight / boxHeight) * (size / 100);
+      const drawnWidth = boxWidth * scale;
+      const drawnHeight = boxHeight * scale;
+      const left = (labelWidth - drawnWidth) / 2;
+      const bottom = (labelHeight - drawnHeight) / 2;
+      // Where the page's own corner lands after turning about it.
+      const origin = {
+        0: [left, bottom],
+        90: [left + drawnWidth, bottom],
+        180: [left + drawnWidth, bottom + drawnHeight],
+        270: [left, bottom + drawnHeight]
+      }[angle];
+      output.addPage([labelWidth, labelHeight]).drawPage(page, {
+        x: origin[0],
+        y: origin[1],
+        xScale: scale,
+        yScale: scale,
+        rotate: pdfLib.degrees(angle)
+      });
+    });
+    return output.save();
+  };
+
+  global.JGStoreOpsLabelReshape = { labelWidth, labelHeight, pageFitsLabel, placement, reshape, cleanLayout, isDefaultLayout, applyLayout };
 })(typeof window !== 'undefined' ? window : globalThis);
