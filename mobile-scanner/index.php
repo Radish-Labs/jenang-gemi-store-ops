@@ -20,7 +20,6 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
     <meta name="theme-color" content="#0b0c0f">
     <title>Mobile Scanner | Jenang Gemi Store Ops</title>
     <meta name="robots" content="noindex,nofollow">
-    <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icons/icon-180.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">

@@ -26,6 +26,7 @@ if (!function_exists('jg_store_ops_favicon_href')) {
 ?>
 <link rel="icon" type="image/svg+xml" href="<?php echo htmlspecialchars(jg_store_ops_favicon_href('store-ops-favicon-light.svg'), ENT_QUOTES, 'UTF-8'); ?>" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="<?php echo htmlspecialchars(jg_store_ops_favicon_href('store-ops-favicon-dark.svg'), ENT_QUOTES, 'UTF-8'); ?>" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="<?php echo htmlspecialchars(jg_store_ops_public_root_prefix() . 'store-ops.webmanifest', ENT_QUOTES, 'UTF-8'); ?>">
 <script>
 // Phone or computer, decided before the page draws so phones never flash the
 // desktop layout. Touch screen with a short side of at most 600 px; override

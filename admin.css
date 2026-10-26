@@ -13575,3 +13575,12 @@ html[data-device="phone"] .is-store-home .admin-store-home .admin-order-meta { j
 html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card-top .admin-instant-badge { padding: 2px 8px; min-height: 0; }
 html[data-device="phone"] .admin-store-home .admin-store-command,
 html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat { height: auto; min-height: 0; margin: 0; }
+
+/* Sidebar "Phone app" pop-up: QR code and link to the phone app. */
+.admin-phone-app-card { width: min(560px, 100%); }
+.admin-phone-app-body { display: flex; gap: 20px; align-items: flex-start; margin-top: 18px; }
+.admin-phone-app-body .admin-mobile-scanner-qr[hidden] { display: none; }
+.admin-phone-app-body .admin-mobile-scanner-steps { flex: 1; min-width: 0; }
+.admin-phone-app-note { margin: 0 0 12px; font-size: 12px; color: var(--admin-muted, #9aa0ab); }
+.admin-phone-app-body [data-phone-app-install] { margin-top: 14px; width: 100%; justify-content: center; }
+@media (max-width: 560px) { .admin-phone-app-body { flex-direction: column; align-items: center; } }

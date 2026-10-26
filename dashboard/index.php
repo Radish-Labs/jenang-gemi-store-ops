@@ -33,7 +33,6 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
     <link rel="stylesheet" href="../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
-    <link rel="manifest" href="../mobile-scanner/manifest.webmanifest">
     <link rel="apple-touch-icon" href="../mobile-scanner/icons/icon-180.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Store Ops">
@@ -80,6 +79,11 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>
                     <span>Reprint</span>
                 </button>
+                <button type="button" class="admin-store-nav-item" data-open-phone-app title="Get the phone app">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
+                    <span>Phone app</span>
+                </button>
+                <script src="../phone-app-install.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/phone-app-install.js')); ?>" defer></script>
             </div>
 
             <footer class="admin-store-sidebar-footer">

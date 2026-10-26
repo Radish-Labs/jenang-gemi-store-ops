@@ -38,6 +38,7 @@ function jg_store_ops_shell_svg(string $name): string
         'walk-ins' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/></svg>',
         'integrations' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8M9 7V3M15 7V3M7 7h10v3a5 5 0 0 1-10 0zM12 15v6"/></svg>',
         'sku-db' => '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
+        'phone-app' => '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>',
         'reprint' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>',
         'settings' => '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>',
         'panel' => '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 4v16"/></svg>',
@@ -138,6 +139,11 @@ function jg_store_ops_shell_open(array $options = []): void
                     <?php echo jg_store_ops_shell_svg('reprint'); ?>
                     <span>Reprint</span>
                 </a>
+                <button type="button" class="admin-store-nav-item" data-open-phone-app title="Get the phone app">
+                    <?php echo jg_store_ops_shell_svg('phone-app'); ?>
+                    <span>Phone app</span>
+                </button>
+                <script src="<?php echo htmlspecialchars($rootPrefix . 'phone-app-install.js?v=' . urlencode((string) @filemtime(__DIR__ . '/phone-app-install.js')), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
             </div>
 
             <footer class="admin-store-sidebar-footer">
@@ -205,7 +211,7 @@ function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
 {
     $mobileScannerSettingsJsVersion = (string) @filemtime(__DIR__ . '/mobile-scanner-settings.js');
     ?>
-                            <div class="admin-mobile-scanner-settings" data-mobile-scanner-settings data-mobile-scanner-url="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-mobile-scanner-endpoint="<?php echo htmlspecialchars($rootPrefix . 'api/mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-store-root="<?php echo htmlspecialchars($rootPrefix, ENT_QUOTES, 'UTF-8'); ?>">
+                            <div class="admin-mobile-scanner-settings" data-mobile-scanner-settings data-mobile-scanner-url="<?php echo htmlspecialchars($rootPrefix . 'dashboard/', ENT_QUOTES, 'UTF-8'); ?>" data-mobile-scanner-endpoint="<?php echo htmlspecialchars($rootPrefix . 'api/mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-store-root="<?php echo htmlspecialchars($rootPrefix, ENT_QUOTES, 'UTF-8'); ?>">
                                 <div class="admin-settings-section-head">
                                     <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg></span>
                                     <div>
