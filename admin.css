@@ -13149,118 +13149,429 @@ button.admin-store-sidebar-profile:hover {
 .admin-print-station-card h3 { margin: 2px 0 0; font-family: 'Space Grotesk', sans-serif; }
 .admin-print-station-card iframe { width: 100%; height: 100%; border: 0; background: var(--admin-bg); }
 
-/* ---------- Phones (Store Ops app): board, pick list, scan and label pages ---------- */
-@media (max-width: 600px) {
-  /* Topbar: menu, a swipeable row of labelled stats, drop-off switch, avatar. */
-  /* Row 1: menu, drop-off switch, avatar. Row 2: all five stats. */
-  .admin-store-home .admin-store-topbar {
-    grid-template-columns: 38px minmax(0, 1fr) auto;
-    grid-template-areas: "menu . actions" "stats stats stats";
-    gap: 6px;
-    min-height: 0;
-    padding: 6px;
-  }
-  .admin-store-home .admin-store-topbar .admin-store-mobile-menu { grid-area: menu; }
-  .admin-store-home .admin-store-topbar .admin-topbar-actions { grid-area: actions; }
-  .admin-store-home .admin-store-command {
-    grid-area: stats;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
-  }
-  .admin-store-home .admin-store-command .admin-store-stat {
-    display: grid;
-    justify-items: center;
-    gap: 0;
-    min-width: 0;
-    padding: 4px 2px;
-  }
-  .admin-store-home .admin-store-command .admin-store-stat span {
-    display: block;
-    font-size: 8.5px;
-    line-height: 1.1;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-  .admin-store-home .admin-store-command .admin-store-stat strong { font-size: 15px; line-height: 1.15; }
-  .admin-store-home .admin-store-topbar .admin-store-profile-copy { display: none; }
-  .admin-store-home .admin-store-topbar .admin-store-header-profile { padding: 3px; gap: 0; }
-  .admin-store-home .admin-store-topbar .admin-topbar-actions { gap: 6px; }
-  .admin-store-home .admin-store-topbar .admin-dropoff-filter-label { display: none; }
+/* ---------- Phones (Store Ops app). <html data-device="phone"> is set in theme-init.php. ---------- */
+html[data-device="phone"] .admin-body.is-store-home .admin-build-badge { display: none; }
 
-  /* The page scrolls, not a short box inside it. */
-  .is-store-home .admin-store-home .admin-order-board-wrap,
-  .admin-store-home .admin-order-board-wrap {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-  .admin-store-home .admin-order-board { height: auto; }
-
-  /* Pop-ups: centred, full width, Lanjut always reachable. */
-  .admin-store-home .admin-modal-shell { padding: 8px; }
-  .admin-store-home .admin-modal-card {
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-    height: auto;
-    min-height: 0;
-    max-height: calc(100dvh - 16px);
-    overflow-y: auto;
-    padding: 18px 16px;
-  }
-  .admin-fulfillment-card .admin-modal-head { gap: 10px; }
-  .admin-fulfillment-card .admin-modal-actions {
-    position: sticky;
-    bottom: -18px;
-    margin: 12px -16px -18px;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: var(--admin-surface);
-    border-top: 1px solid var(--admin-border);
-  }
-  .admin-fulfillment-card .admin-next-btn { width: 100%; min-height: 52px; }
-  .admin-pick-item { padding: 10px 12px; gap: 10px; }
-  .admin-pick-item strong,
-  .admin-preview-product strong {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    font-size: 15px;
-  }
-  .admin-pick-item span { font-size: 12px; }
-  .admin-preview-products,
-  .admin-preview-product-list { height: auto; max-height: none; overflow: visible; }
-
-  /* Scan and label pages: use the whole width. */
-  .admin-scan-page-layout,
-  .admin-print-page-layout { padding: 0; }
-  .admin-scan-page-card,
-  .admin-print-page-card { padding: 12px; border-radius: 16px; }
-  .admin-scan-page-card .admin-scan-head h3,
-  .admin-print-page-card .admin-scan-head h3 { font-size: 18px; }
-  body.is-phone-scan .admin-scanner-status-card { padding: 8px 12px; }
-  /* Phone scan page: one line for the order and progress, then the camera. */
-  body.is-phone-scan .admin-scan-head .admin-panel-kicker,
-  body.is-phone-scan .admin-scan-head h3 { display: none; }
-  body.is-phone-scan .admin-scan-page-card { display: grid; align-content: start; gap: 8px; }
-  body.is-phone-scan .admin-scan-page-card > * { margin-top: 0; margin-bottom: 0; }
-  body.is-phone-scan .admin-scan-head > div { text-align: left; }
-  body.is-phone-scan .admin-scan-head {
-    display: flex;
-    flex-direction: row;
-    text-align: left;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 0;
-  }
-  body.is-phone-scan .admin-scan-head .admin-panel-meta { margin: 0; font-size: 13px; }
-  body.is-phone-scan .admin-scan-head .admin-status-badge { margin: 0; font-size: 15px; }
-  body.is-phone-scan .admin-phone-camera { margin: 8px 0; }
-  body.is-phone-scan .admin-sync-status { padding: 4px 10px; font-size: 11px; min-height: 0; }
-  body.is-phone-scan .admin-scan-list { margin-top: 8px; }
+/* Header: one slim row — menu, plain counts, drop-off switch, avatar. */
+html[data-device="phone"] .admin-store-home .admin-store-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 6px 8px;
+  border-radius: 16px;
 }
+html[data-device="phone"] .admin-store-home .admin-store-mobile-menu { display: grid; flex: 0 0 auto; width: 34px; height: 34px; }
+html[data-device="phone"] .admin-store-home .admin-store-command {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+/* Claimed and Fulfilling are not needed on a phone. */
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat:nth-child(n+4) { display: none; }
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat strong {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat span {
+  display: inline;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat:nth-child(3) strong { color: var(--admin-danger); }
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-topbar-actions { flex: 0 0 auto; gap: 6px; }
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-view-indicator,
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-dropoff-filter-label,
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-store-profile-copy { display: none; }
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-store-header-profile { padding: 2px; gap: 0; border: 0; background: none; }
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-store-profile-avatar { width: 32px; height: 32px; }
+
+/* Board: the page scrolls, two even columns, most urgent first, left to right. */
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-board-wrap,
+html[data-device="phone"] .admin-store-home .admin-order-board-wrap { height: auto; max-height: none; overflow: visible; }
+html[data-device="phone"] .admin-store-home .admin-fulfillment-panel { padding: 8px; }
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-board {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-auto-flow: row;
+  grid-auto-rows: auto;
+  grid-auto-columns: auto;
+  gap: 8px;
+  height: auto;
+  align-items: stretch;
+}
+
+/* Order card, built for half the screen width. */
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  height: 100%;
+  padding: 10px 10px 10px 12px;
+  border-width: 1px 1px 1px 4px;
+  border-radius: 14px;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--admin-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card-top > span:not(.admin-order-id) {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-size: 8.5px;
+  line-height: 1.3;
+}
+html[data-device="phone"] .admin-store-home .admin-instant-badge .admin-instant-badge-label { display: none; }
+html[data-device="phone"] .admin-store-home .admin-instant-badge svg { width: 22px; height: 14px; }
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-deadline {
+  display: grid;
+  gap: 1px;
+  padding: 0;
+  background: none;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-deadline > span {
+  margin: 0;
+  color: var(--admin-muted);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-deadline > small {
+  max-width: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+  font-size: 9px;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-meta span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+}
+html[data-device="phone"] .is-store-home .admin-store-home .admin-start-order-btn {
+  width: 100%;
+  max-width: none;
+  min-height: 40px;
+  margin: 0;
+  justify-content: center;
+  font-size: 13px;
+}
+
+/* Pop-ups: centred, full width, Lanjut always reachable. */
+html[data-device="phone"] .admin-store-home .admin-modal-shell { padding: 8px; }
+html[data-device="phone"] .admin-store-home .admin-modal-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: calc(100dvh - 16px);
+  margin: 0 auto;
+  overflow-y: auto;
+  padding: 18px 16px;
+}
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head { gap: 10px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-actions {
+  position: sticky;
+  bottom: -18px;
+  margin: 12px -16px -18px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--admin-surface);
+  border-top: 1px solid var(--admin-border);
+}
+html[data-device="phone"] .admin-fulfillment-card .admin-next-btn { width: 100%; min-height: 52px; }
+html[data-device="phone"] .admin-pick-item { padding: 10px 12px; gap: 10px; }
+html[data-device="phone"] .admin-pick-item strong,
+html[data-device="phone"] .admin-preview-product strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: 15px;
+}
+html[data-device="phone"] .admin-pick-item span { font-size: 12px; }
+html[data-device="phone"] .admin-preview-products,
+html[data-device="phone"] .admin-preview-product-list { height: auto; max-height: none; overflow: visible; }
+
+/* Scan and label pages: use the whole width. */
+html[data-device="phone"] .admin-scan-page-layout,
+html[data-device="phone"] .admin-print-page-layout { padding: 0; }
+html[data-device="phone"] .admin-scan-page-card,
+html[data-device="phone"] .admin-print-page-card { padding: 12px; border-radius: 16px; }
+html[data-device="phone"] .admin-print-page-card .admin-scan-head h3 { font-size: 18px; }
+
+/* Phone scan page: one line for the order and progress, then the camera. */
+html[data-device="phone"] body.is-phone-scan .admin-scan-page-card { display: grid; align-content: start; gap: 8px; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-page-card > * { margin-top: 0; margin-bottom: 0; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-head .admin-panel-kicker,
+html[data-device="phone"] body.is-phone-scan .admin-scan-head h3 { display: none; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  text-align: left;
+}
+html[data-device="phone"] body.is-phone-scan .admin-scan-head > div { text-align: left; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-head .admin-panel-meta { margin: 0; font-size: 13px; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-head .admin-status-badge { margin: 0; font-size: 15px; }
+html[data-device="phone"] body.is-phone-scan .admin-scanner-status-card { padding: 8px 12px; }
+html[data-device="phone"] body.is-phone-scan .admin-phone-camera { margin: 8px 0; }
+html[data-device="phone"] body.is-phone-scan .admin-sync-status { padding: 4px 10px; font-size: 11px; min-height: 0; }
+html[data-device="phone"] body.is-phone-scan .admin-scan-list { margin-top: 8px; }
+
+/* Phone board: offer the installed app when Chrome's bar is showing. */
+html[data-device="phone"] .admin-app-install-bar {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-surface-soft);
+}
+html[data-device="phone"] .admin-app-install-bar img { width: 36px; height: 36px; border-radius: 9px; }
+html[data-device="phone"] .admin-app-install-bar strong { display: block; font-size: 13px; }
+html[data-device="phone"] .admin-app-install-bar small { display: block; color: var(--admin-muted); font-size: 11px; line-height: 1.35; }
+html[data-device="phone"] .admin-app-install-bar .admin-primary-btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
+html[data-device="phone"] .admin-app-install-bar .admin-primary-btn[hidden] { display: none; }
+html[data-device="phone"] .admin-app-install-close {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--admin-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+.admin-app-install-bar { display: none; }
+html[data-device="phone"] .admin-app-install-bar { display: grid; }
+
+/* Phone order preview and pick list: icon rows, no nested cards. */
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head { align-items: center; margin-bottom: 4px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head h3 { font-size: 17px; letter-spacing: 0.01em; }
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head .admin-ghost-btn { min-height: 32px; padding: 0 12px; font-size: 12px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-preview,
+html[data-device="phone"] .admin-fulfillment-card .admin-quiz-stage { display: grid; gap: 12px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-preview[hidden],
+html[data-device="phone"] .admin-fulfillment-card .admin-quiz-stage[hidden] { display: none; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-summary { display: grid; gap: 10px; padding: 0; border: 0; background: none; }
+html[data-device="phone"] .admin-phone-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--admin-surface-soft);
+}
+html[data-device="phone"] .admin-phone-deadline { display: grid; gap: 2px; }
+html[data-device="phone"] .admin-phone-deadline span {
+  color: var(--admin-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+html[data-device="phone"] .admin-phone-deadline strong { font-family: 'Space Grotesk', sans-serif; font-size: 28px; line-height: 1; }
+html[data-device="phone"] .admin-phone-summary.is-deadline-urgent .admin-phone-deadline strong { color: var(--admin-danger); }
+html[data-device="phone"] .admin-phone-summary-copy { display: grid; gap: 2px; text-align: right; }
+html[data-device="phone"] .admin-phone-summary-copy strong { font-size: 13px; }
+html[data-device="phone"] .admin-phone-summary-copy span { color: var(--admin-muted); font-size: 12px; }
+html[data-device="phone"] .admin-phone-facts { list-style: none; margin: 0; padding: 0 2px; display: grid; gap: 0; }
+html[data-device="phone"] .admin-phone-fact {
+  display: grid;
+  grid-template-columns: 18px 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--admin-border);
+  font-size: 13px;
+}
+html[data-device="phone"] .admin-phone-fact:last-child { border-bottom: 0; }
+html[data-device="phone"] .admin-phone-fact span { color: var(--admin-muted); font-size: 12px; }
+html[data-device="phone"] .admin-phone-fact strong { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+html[data-device="phone"] .admin-phone-fact.is-alert,
+html[data-device="phone"] .admin-phone-fact.is-alert span { color: var(--admin-danger); }
+html[data-device="phone"] .admin-phone-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--admin-muted);
+}
+html[data-device="phone"] .admin-phone-section {
+  margin: 4px 2px 0;
+  color: var(--admin-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+html[data-device="phone"] .admin-phone-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+html[data-device="phone"] .admin-phone-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--admin-border);
+}
+html[data-device="phone"] .admin-phone-item:last-child { border-bottom: 0; }
+html[data-device="phone"] .admin-phone-qty {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--admin-success) 16%, transparent);
+  color: var(--admin-success);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+}
+html[data-device="phone"] .admin-phone-item strong { display: block; font-size: 14px; line-height: 1.3; }
+html[data-device="phone"] .admin-phone-item small { display: block; margin-top: 1px; color: var(--admin-muted); font-size: 11px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-pick-list { display: block; padding: 0; border: 0; background: none; }
+html[data-device="phone"] .admin-phone-action {
+  position: sticky;
+  bottom: -18px;
+  display: grid;
+  gap: 6px;
+  margin: 4px -16px -18px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+html[data-device="phone"] .admin-phone-action small { color: var(--admin-muted); font-size: 11px; text-align: center; }
+html[data-device="phone"] .admin-phone-action .admin-preview-start { width: 100%; min-height: 50px; justify-content: center; font-size: 15px; }
+
+/* Phone: an Instant order scrolled out of view. */
+.admin-instant-jump { display: none; }
+html[data-device="phone"] .admin-instant-jump {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 9px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 10px 28px rgba(220, 38, 38, 0.45);
+  transform: translate(-50%, 0);
+  transition: opacity 0.18s, transform 0.18s;
+  animation: admin-instant-jump-pulse 1.4s ease-in-out infinite;
+}
+html[data-device="phone"] .admin-instant-jump[hidden] { display: flex; opacity: 0; pointer-events: none; transform: translate(-50%, -12px); animation: none; }
+html[data-device="phone"] .admin-instant-jump svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes admin-instant-jump-pulse {
+  0%, 100% { box-shadow: 0 10px 28px rgba(220, 38, 38, 0.45); }
+  50% { box-shadow: 0 10px 34px rgba(220, 38, 38, 0.85); }
+}
+
+/* Phone fixes: header on one row, popup header, summary without old pills. */
+html[data-device="phone"] .admin-store-home .admin-store-topbar {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+html[data-device="phone"] .admin-store-home .admin-store-topbar .admin-topbar-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+html[data-device="phone"] .admin-store-home .admin-store-command { justify-content: flex-start; }
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head > div { display: grid; gap: 2px; text-align: left; }
+html[data-device="phone"] .admin-fulfillment-card .admin-modal-head .admin-panel-kicker { font-size: 10px; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-summary { width: 100%; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-summary span {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+html[data-device="phone"] .admin-fulfillment-card .admin-phone-summary { box-sizing: border-box; width: 100%; }
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card.is-deadline-urgent .admin-order-deadline {
+  background: none;
+  color: #f59e0b;
+}
+html[data-device="phone"] .admin-store-home .admin-store-command { align-items: center; align-self: center; }
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat { align-items: baseline; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-summary { display: flex; flex-direction: column; align-items: stretch; }
+html[data-device="phone"] .admin-fulfillment-card .admin-order-summary > * { flex: 0 0 auto; width: 100%; }
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-meta { justify-content: flex-start; align-self: stretch; }
+html[data-device="phone"] .is-store-home .admin-store-home .admin-order-card-top .admin-instant-badge { padding: 2px 8px; min-height: 0; }
+html[data-device="phone"] .admin-store-home .admin-store-command,
+html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-stat { height: auto; min-height: 0; margin: 0; }

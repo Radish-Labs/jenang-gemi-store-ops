@@ -2499,6 +2499,27 @@ document.addEventListener('DOMContentLoaded', () => {
     boardResizeTimer = window.setTimeout(renderBoard, 80);
   };
 
+  // Phone layouts for the order preview and pick list: icon rows instead of
+  // cards, so everything fits a small screen. Computers keep their layout.
+  const phoneIcons = {
+    status: '<path d="M4 7h16M4 12h16M4 17h10"/>',
+    person: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+    truck: '<path d="M3 6.5h11v9H3zM14 9.5h4l3 3v3h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>',
+    customer: '<path d="M4 20v-1.5A4.5 4.5 0 0 1 8.5 14h7a4.5 4.5 0 0 1 4.5 4.5V20"/><circle cx="12" cy="7.5" r="3.5"/>',
+    box: '<path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z"/><path d="m4 7.5 8 3.5 8-3.5M12 11v9"/>',
+    alert: '<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>',
+    scan: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10"/>'
+  };
+  const phoneIcon = (name) => `<svg class="admin-phone-icon" viewBox="0 0 24 24" aria-hidden="true">${phoneIcons[name] || ''}</svg>`;
+  const phoneFactRow = (icon, label, value, extraClass = '') => value
+    ? `<li class="admin-phone-fact ${extraClass}">${phoneIcon(icon)}<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`
+    : '';
+  const phoneItemRows = (rows) => `<ul class="admin-phone-items">${rows.map((row) => `
+      <li class="admin-phone-item">
+        <b class="admin-phone-qty">${escapeHtml(row.quantity)}×</b>
+        <span><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.note)}</small></span>
+      </li>`).join('')}</ul>`;
+
   const renderOrderPreview = (order) => {
     if (!previewStage) return;
     const unitCount = orderProductCount(order);
@@ -2526,6 +2547,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (modalTitle) modalTitle.textContent = order.id;
     if (modalStepLabel) modalStepLabel.textContent = 'Order preview';
+    if (window.JGStoreDevice?.isPhone()) {
+      previewStage.innerHTML = `
+        <section class="admin-phone-summary ${isCriticalOrder(order) && !order.instant ? 'is-deadline-urgent' : ''}">
+          <div class="admin-phone-deadline">
+            ${order.deadlineLabel ? `<span>${escapeHtml(order.deadlineLabel)}</span>` : ''}
+            <strong>${escapeHtml(formatDeadline(order))}</strong>
+          </div>
+          <div class="admin-phone-summary-copy">
+            <strong>${escapeHtml(sourceLabel)}</strong>
+            <span>${unitCount} unit${unitCount === 1 ? '' : 's'} · ${lineCount} product${lineCount === 1 ? '' : 's'}</span>
+          </div>
+        </section>
+        <ul class="admin-phone-facts">
+          ${phoneFactRow('status', 'Status', order.marketplaceStatus || order.status)}
+          ${phoneFactRow('person', 'Assigned', claimLabel)}
+          ${phoneFactRow('truck', 'Handover', handoverLabel)}
+          ${phoneFactRow('customer', 'Customer', customerName)}
+          ${phoneFactRow('box', 'Package', packageNumber)}
+          ${phoneFactRow('alert', 'Problem', arrangementIssue, 'is-alert')}
+        </ul>
+        <h4 class="admin-phone-section">Products</h4>
+        ${order.items.length ? phoneItemRows(order.items.map((item) => ({
+          quantity: Math.max(1, Number(item.quantity || 1)),
+          name: item.productName || item.scanProductName || 'Order item',
+          note: String(item.sourceSkus?.[0] || item.sku || item.tag || '').trim() || 'SKU unavailable'
+        }))) : '<p class="admin-preview-empty">No product details are available for this order.</p>'}
+        <div class="admin-phone-action">
+          ${action.note ? `<small>${escapeHtml(action.note)}</small>` : ''}
+          <button type="button" class="admin-primary-btn admin-preview-start" data-preview-start="${escapeHtml(order.id)}" ${action.disabled ? 'disabled' : ''}>
+            <span>${escapeHtml(action.label)}</span>
+          </button>
+        </div>
+      `;
+      return;
+    }
     previewStage.innerHTML = `
       <section class="admin-preview-hero">
         <span class="admin-preview-hero-icon" aria-hidden="true">
@@ -2595,9 +2651,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const renderPhonePickStage = (order) => {
+    const pickupSlot = order.handoverMethod === 'PICKUP' ? orderPresentation.formatHandoverSlot(order) : '';
+    const handover = orderPresentation.isDropOff(order)
+      ? `Drop-off${order.shippingProviderName ? ` · ${order.shippingProviderName}` : ''}`
+      : (pickupSlot ? `Pickup · ${pickupSlot}` : '');
+    const units = orderProductCount(order);
+    if (orderSummary) {
+      orderSummary.innerHTML = `
+        <section class="admin-phone-summary ${isCriticalOrder(order) && !order.instant ? 'is-deadline-urgent' : ''}">
+          <div class="admin-phone-deadline">
+            ${order.deadlineLabel ? `<span>${escapeHtml(order.deadlineLabel)}</span>` : ''}
+            <strong>${escapeHtml(formatDeadline(order))}</strong>
+          </div>
+          <div class="admin-phone-summary-copy">
+            <strong>${escapeHtml(sourceLabelFromOrder(order))}</strong>
+            <span>${units} unit${units === 1 ? '' : 's'} to grab</span>
+          </div>
+        </section>
+        ${handover ? `<ul class="admin-phone-facts">${phoneFactRow('truck', 'Handover', handover)}</ul>` : ''}
+      `;
+    }
+    if (pickList) {
+      pickList.innerHTML = phoneItemRows(order.items.map((item) => {
+        const scanQuantity = Number(item.scanQuantity || item.quantity);
+        const multiplier = Number(item.scanMultiplier || 1);
+        const scanSku = String(item.scanSku || item.sku || '');
+        const skipped = Number(item.skipQuantity || (item.skipScan ? scanQuantity : 0));
+        return {
+          quantity: item.quantity || scanQuantity,
+          name: item.productName || item.scanProductName || 'Order item',
+          note: skipped > 0
+            ? `${scanSku} · Skip Scan`
+            : (multiplier > 1 ? `Scan ${scanSku} ${multiplier}× per unit (${scanQuantity} scans)` : `Scan ${scanSku || item.sku || ''}`)
+        };
+      }));
+    }
+  };
+
   const renderPickStage = (order) => {
     if (modalTitle) modalTitle.textContent = order.id;
     if (modalStepLabel) modalStepLabel.textContent = 'Pick List';
+    if (window.JGStoreDevice?.isPhone()) {
+      renderPhonePickStage(order);
+      return;
+    }
     if (orderSummary) {
       orderSummary.innerHTML = `
         <span><strong>${escapeHtml(sourceLabelFromOrder(order))}</strong> ${escapeHtml(order.marketplaceStatus)}</span>

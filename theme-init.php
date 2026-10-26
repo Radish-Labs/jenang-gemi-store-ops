@@ -27,6 +27,19 @@ if (!function_exists('jg_store_ops_favicon_href')) {
 <link rel="icon" type="image/svg+xml" href="<?php echo htmlspecialchars(jg_store_ops_favicon_href('store-ops-favicon-light.svg'), ENT_QUOTES, 'UTF-8'); ?>" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="<?php echo htmlspecialchars(jg_store_ops_favicon_href('store-ops-favicon-dark.svg'), ENT_QUOTES, 'UTF-8'); ?>" media="(prefers-color-scheme: dark)">
 <script>
+// Phone or computer, decided before the page draws so phones never flash the
+// desktop layout. Touch screen with a short side of at most 600 px; override
+// with localStorage 'jg-store-device' = 'phone' or 'computer'.
+(() => {
+  let device = '';
+  try { device = window.localStorage.getItem('jg-store-device') || ''; } catch (_error) { /* Detect below. */ }
+  if (device !== 'phone' && device !== 'computer') {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const shortSide = Math.min(window.screen?.width || 9999, window.screen?.height || 9999);
+    device = coarse && shortSide <= 600 ? 'phone' : 'computer';
+  }
+  document.documentElement.dataset.device = device;
+})();
 (() => {
   const themes = ['dark', 'light', 'system'];
   const legacyThemes = {

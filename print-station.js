@@ -75,11 +75,33 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastReported = '';
   let finishJob = () => {};
 
+  // Send progress one update at a time and always end on the newest, so
+  // two quick updates can never arrive at the server in the wrong order.
+  let sending = false;
+  let pending = null;
+  const flushReports = async () => {
+    if (sending) return;
+    sending = true;
+    while (pending) {
+      const next = pending;
+      pending = null;
+      try {
+        await post({ action: 'station_status', job: next.job, status: next.status, detail: next.detail });
+      } catch (_error) {
+        if (!pending) pending = next;
+        await sleep(1500);
+      }
+    }
+    sending = false;
+  };
+  let jobDone = false;
   const report = (status, detail = '') => {
     const signature = `${status}|${detail}`;
-    if (!activeJob || signature === lastReported) return;
+    // After "printed", late status messages from the label page are ignored.
+    if (!activeJob || signature === lastReported || (jobDone && status !== 'printed')) return;
     lastReported = signature;
-    post({ action: 'station_status', job: activeJob, status, detail }).catch(() => { lastReported = ''; });
+    pending = { job: activeJob, status, detail };
+    flushReports();
   };
 
   window.addEventListener('message', (event) => {
@@ -88,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (message.source !== 'jg-print-station' || !activeJob) return;
     if (message.type === 'done') {
       report('printed');
+      jobDone = true;
       window.setTimeout(() => finishJob(), 1200);
       return;
     }
@@ -102,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const printJob = (taken) => new Promise((resolve) => {
     activeJob = taken.job;
     lastReported = '';
+    jobDone = false;
     orderTitle.textContent = taken.order_id;
     const query = new URLSearchParams({
       order: taken.order_id,

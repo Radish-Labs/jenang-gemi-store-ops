@@ -1,9 +1,10 @@
 // Is this Store Ops screen a phone (camera scanning, prints on the packing
-// computer) or a computer (USB scanner and printer)? Phones are detected by a
-// touch screen whose short side is at most 600 px. Override per device with
-// localStorage 'jg-store-device' = 'phone' or 'computer'.
+// computer) or a computer (USB scanner and printer)? theme-init.php decides
+// early and stores it on <html data-device>; see there for the rule.
 window.JGStoreDevice = {
   isPhone() {
+    const decided = document.documentElement.dataset.device;
+    if (decided) return decided === 'phone';
     try {
       const forced = window.localStorage.getItem('jg-store-device');
       if (forced === 'phone') return true;
