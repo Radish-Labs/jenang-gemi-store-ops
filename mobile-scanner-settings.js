@@ -37,14 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
       qr.addData(url);
       qr.make();
       // Draw a solid image where every module is the same whole number of
-      // screen pixels (also under Windows 125%/150% scaling), with the
-      // standard 4-module white margin. Scaled vector modules can show faint
-      // seams or uneven widths that some phone scanners reject.
+      // screen pixels (also under Windows 125%/150% scaling). Scaled vector
+      // modules can show faint seams or uneven widths that some phone
+      // scanners reject. The tile's white padding is the margin.
       const modules = qr.getModuleCount();
-      const quiet = 4;
+      const quiet = 0;
       const total = modules + quiet * 2;
       const ratio = window.devicePixelRatio || 1;
-      const cell = Math.max(3, Math.floor((232 * ratio) / total));
+      const cell = Math.max(3, Math.floor((152 * ratio) / total));
       const canvas = document.createElement('canvas');
       canvas.width = total * cell;
       canvas.height = total * cell;

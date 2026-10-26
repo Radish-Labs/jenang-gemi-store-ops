@@ -12989,7 +12989,7 @@ button.admin-store-sidebar-profile:hover {
 .admin-mobile-scanner-settings .admin-mobile-scanner-actions { justify-content: flex-start; }
 .admin-mobile-scanner-card {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-columns: 168px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
   padding: 16px;
@@ -12999,9 +12999,9 @@ button.admin-store-sidebar-profile:hover {
 }
 .admin-mobile-scanner-card[hidden] { display: none; }
 .admin-mobile-scanner-qr {
-  width: 232px;
-  height: 232px;
-  padding: 0;
+  width: 168px;
+  height: 168px;
+  padding: 8px;
   border-radius: 12px;
   background: #ffffff;
   display: grid;
