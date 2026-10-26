@@ -13027,6 +13027,14 @@ button.admin-store-sidebar-profile:hover {
 .admin-mobile-scanner-phone.is-connected { color: var(--admin-success); font-weight: 700; }
 .admin-sync-status.admin-mobile-scanner-live { color: var(--admin-success); }
 .admin-sync-status.admin-mobile-scanner-live.is-error { color: var(--admin-danger); }
+.admin-sync-status.admin-mobile-scanner-live.is-waiting { color: var(--admin-muted); }
+.admin-mobile-scanner-live-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.admin-mobile-scanner-live-row[hidden] { display: none; }
+.admin-mobile-scanner-live-row .admin-sync-status { margin: 0; }
+.admin-mobile-scanner-live-row .admin-ghost-btn { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.admin-mobile-scanner-mode { margin-top: 6px; }
+.admin-scanner-health-actions.admin-mobile-scanner-actions button[hidden] { display: none; }
+.admin-mobile-scanner-mode strong { color: var(--admin-text); }
 @media (max-width: 640px) {
   .admin-mobile-scanner-card { grid-template-columns: 1fr; }
 }

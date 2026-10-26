@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let session = '';
   let pollTimer = 0;
   let polling = false;
+  let pollController = null;
+  let knownSignature = '';
+  let currentSummary = null;
   let stream = null;
   let detector = null;
   let zxingReader = null;
@@ -61,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const setResult = (title, detail, tone = 'info') => {
+    resultNode.hidden = !title;
     resultTitle.textContent = title;
     resultDetail.textContent = detail;
     resultNode.classList.toggle('is-ok', tone === 'ok');
@@ -110,11 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Server --------------------------------------------------------------------
-  const api = async (method, body = null) => {
-    const response = await fetch(method === 'GET' ? `${endpoint}?action=phone_state` : endpoint, {
+  const api = async (method, body = null, options = {}) => {
+    const query = new URLSearchParams({ action: 'phone_state', wait: String(options.wait || 0), known: options.known || '' });
+    const response = await fetch(method === 'GET' ? `${endpoint}?${query}` : endpoint, {
       method,
       cache: 'no-store',
       credentials: 'same-origin',
+      signal: options.signal,
       headers: body ? { 'Content-Type': 'application/json', Accept: 'application/json' } : { Accept: 'application/json' },
       body: body ? JSON.stringify(body) : undefined
     });
@@ -228,14 +234,28 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Scanning ------------------------------------------------------------------
+  // Same barcode -> SKU rule as the computer's scan page.
+  const skuFromBarcode = (value) => {
+    const barcode = String(value || '').trim().toUpperCase();
+    const sku = barcode.slice(0, -1);
+    return /^\d{11}$/.test(sku) ? `0${sku}` : sku;
+  };
+
   const sendCode = async (code) => {
     if (!session) return;
-    setResult(`Sent ${code}`, 'Checking against the order on the computer…');
+    // Show the matching product immediately; the computer's verdict follows.
+    const sku = skuFromBarcode(code);
+    const upper = code.trim().toUpperCase();
+    const match = (currentSummary?.items || []).find((item) => {
+      const itemCode = String(item.code || '').toUpperCase();
+      return itemCode && (itemCode === sku || itemCode === upper);
+    });
+    setResult(match ? match.name || match.code : `Read ${code}`, 'Checking with the computer…');
     try {
       const payload = await api('POST', { action: 'scan', session, code });
       if (!payload.active) {
         setResult('Order closed', 'This order is no longer open on the computer.', 'error');
-        pollNow();
+        pollNow({ restart: true });
       }
     } catch (error) {
       setResult('Not sent', error.message || 'Scan again.', 'error');
@@ -248,9 +268,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!code || !session) return;
     const now = Date.now();
     // Cameras read the same label many times per second. One scan per item:
-    // the same code needs a 1.5 s pause, any code needs 0.6 s.
-    if (code === lastCode && now - lastCodeAt < 1500) { lastCodeAt = now; return; }
-    if (now - lastAnyAt < 600) return;
+    // the same code must leave the view for 0.9 s, any code needs 0.3 s.
+    if (code === lastCode && now - lastCodeAt < 900) { lastCodeAt = now; return; }
+    if (now - lastAnyAt < 300) return;
     lastCode = code;
     lastCodeAt = now;
     lastAnyAt = now;
@@ -264,19 +284,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Session state -------------------------------------------------------------
   const renderSummary = (summary) => {
     if (!summary) return;
+    currentSummary = summary;
     progressNode.textContent = `${summary.scanned || 0}/${summary.required || 0}`;
     itemsNode.innerHTML = (summary.items || []).map((item) => {
       const done = item.required > 0 && item.scanned >= item.required;
       return `<li class="${done ? 'is-done' : ''}"><span>${escapeHtml(item.name || item.code)}<small>${escapeHtml(item.code)}</small></span><b>${item.scanned}/${item.required}</b></li>`;
     }).join('');
     const status = summary.status || {};
-    if (status.title && status.seq !== lastStatusSeq) {
+    // Only scan outcomes (accepted / problem) are shown; routine computer
+    // status lines would just take up space.
+    // The first status seen for an order is from before the phone joined, so
+    // it is only remembered, not shown.
+    if (status.seq !== lastStatusSeq) {
       const isNew = lastStatusSeq !== -1;
       lastStatusSeq = status.seq;
-      setResult(status.title, status.detail || '', status.tone);
-      if (isNew && status.tone === 'error') {
-        beep([330, 220], 0.32);
-        vibrate([200, 80, 200, 80, 200]);
+      if (isNew && status.title && (status.tone === 'ok' || status.tone === 'error')) {
+        setResult(status.title, status.detail || '', status.tone);
+        if (status.tone === 'error') {
+          beep([330, 220], 0.32);
+          vibrate([200, 80, 200, 80, 200]);
+        }
       }
     }
   };
@@ -298,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
       session = state.session;
       lastStatusSeq = -1;
       lastCode = '';
-      setResult('Ready to scan', 'Point the camera at a product barcode.');
+      setResult('', '');
       vibrate(60);
     }
     waitingNode.hidden = true;
@@ -309,23 +336,41 @@ document.addEventListener('DOMContentLoaded', () => {
     startCamera();
   };
 
-  const schedulePoll = () => {
+  const schedulePoll = (delay) => {
     window.clearTimeout(pollTimer);
     if (document.visibilityState !== 'visible') return;
-    pollTimer = window.setTimeout(pollNow, session ? 900 : 1500);
+    pollTimer = window.setTimeout(pollNow, delay);
   };
 
-  async function pollNow() {
-    if (polling) return;
+  // The server holds this request open until something changes (new order,
+  // new result) or 10 s pass, so updates arrive immediately.
+  async function pollNow(options = {}) {
+    if (options.restart && pollController) pollController.abort();
+    if (polling && !options.restart) return;
     polling = true;
+    const controller = new AbortController();
+    pollController = controller;
+    let failed = false;
     try {
-      applyState(await api('GET'));
+      const state = await api('GET', null, {
+        wait: options.restart ? 0 : 10,
+        known: options.restart ? '' : knownSignature,
+        signal: controller.signal
+      });
+      if (pollController !== controller) return;
+      knownSignature = String(state.signature || '');
+      applyState(state);
       setError('');
     } catch (error) {
+      if (controller.signal.aborted) return;
+      failed = true;
       setError(error.message || 'Connection lost. Retrying…');
     } finally {
-      polling = false;
-      schedulePoll();
+      if (pollController === controller) {
+        pollController = null;
+        polling = false;
+        schedulePoll(failed ? 1500 : 0);
+      }
     }
   }
 
@@ -372,9 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       keepAwake();
-      pollNow();
+      pollNow({ restart: true });
     } else {
       window.clearTimeout(pollTimer);
+      if (pollController) pollController.abort();
+      pollController = null;
+      polling = false;
       stopCamera();
     }
   });

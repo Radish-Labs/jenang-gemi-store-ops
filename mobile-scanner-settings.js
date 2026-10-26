@@ -12,6 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyButton = root.querySelector('[data-mobile-scanner-copy]');
   const phoneNode = root.querySelector('[data-mobile-scanner-phone]');
   const profileNode = root.querySelector('[data-mobile-scanner-profile]');
+  const usbButton = root.querySelector('[data-mobile-scanner-usb]');
+  const modeNode = root.querySelector('[data-mobile-scanner-mode]');
+  // Scanner choice is per computer (shared with the scan page).
+  const modeKey = 'jg-store-scanner-mode';
+  const readMode = () => {
+    try { return window.localStorage.getItem(modeKey) === 'phone' ? 'phone' : 'usb'; } catch (_error) { return 'usb'; }
+  };
+  const writeMode = (mode) => {
+    try { window.localStorage.setItem(modeKey, mode); } catch (_error) { /* Falls back to USB. */ }
+  };
   const url = new URL(root.dataset.mobileScannerUrl || '../mobile-scanner/', window.location.href).href;
   const endpoint = root.dataset.mobileScannerEndpoint || '../api/mobile-scanner/';
   let statusTimer = 0;
@@ -94,13 +104,33 @@ document.addEventListener('DOMContentLoaded', () => {
     statusTimer = window.setTimeout(checkPhone, 3000);
   };
 
-  openButton.addEventListener('click', () => {
-    card.hidden = !card.hidden;
-    openButton.setAttribute('aria-expanded', String(!card.hidden));
-    if (!card.hidden) {
+  const renderMode = () => {
+    const phone = readMode() === 'phone';
+    modeNode.innerHTML = phone
+      ? 'This computer uses the <strong>phone scanner</strong>. The USB scanner also still works.'
+      : 'This computer uses the <strong>USB scanner</strong>.';
+    usbButton.hidden = !phone;
+    card.hidden = !phone;
+    openButton.setAttribute('aria-expanded', String(phone));
+    if (phone) {
       renderQr();
       checkPhone();
     }
+  };
+
+  openButton.addEventListener('click', () => {
+    writeMode('phone');
+    renderMode();
+  });
+
+  usbButton.addEventListener('click', () => {
+    writeMode('usb');
+    window.clearTimeout(statusTimer);
+    renderMode();
+  });
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === modeKey) renderMode();
   });
 
   copyButton.addEventListener('click', async () => {
@@ -116,4 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.setTimeout(() => { copyButton.textContent = 'Copy link'; }, 1600);
   });
+
+  renderMode();
 });

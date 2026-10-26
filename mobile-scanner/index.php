@@ -84,13 +84,14 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
         .ms-camera-msg[hidden] { display: none; }
         .ms-btn { appearance: none; border: 0; border-radius: 999px; background: var(--ms-button); color: var(--ms-button-text); font: 700 15px "Plus Jakarta Sans", sans-serif; padding: 12px 20px; min-height: 44px; }
         .ms-camera-msg .ms-btn { background: #fff; color: #000; }
-        .ms-result { border-left: 4px solid var(--ms-info); }
-        .ms-result.is-ok { border-left-color: var(--ms-ok); }
-        .ms-result.is-error { border-left-color: var(--ms-error); }
-        .ms-result strong { display: block; font-size: 15px; }
-        .ms-result.is-ok strong { color: var(--ms-ok); }
-        .ms-result.is-error strong { color: var(--ms-error); }
-        .ms-result span { color: var(--ms-muted); font-size: 13px; line-height: 1.4; }
+        /* Scan result: a strip over the bottom of the camera, only after a scan. */
+        .ms-result { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 8px 12px; border-radius: 12px; background: rgba(11, 12, 15, .88); color: #f4f5f7; border-left: 4px solid #67e8f9; }
+        .ms-result.is-ok { border-left-color: #34d399; }
+        .ms-result.is-error { border-left-color: #f87171; }
+        .ms-result strong { display: block; font-size: 14px; line-height: 1.3; }
+        .ms-result.is-ok strong { color: #34d399; }
+        .ms-result.is-error strong { color: #f87171; }
+        .ms-result span { display: block; color: #c9cdd4; font-size: 12px; line-height: 1.35; }
         .ms-items { list-style: none; margin: 0; padding: 0; }
         .ms-items li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--ms-line); font-size: 14px; }
         .ms-items li:first-child { border-top: 0; }
@@ -154,14 +155,14 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
             </div>
             <div class="ms-camera" data-ms-camera>
                 <video data-ms-video muted playsinline autoplay></video>
+                <div class="ms-result" data-ms-result aria-live="polite" hidden>
+                    <strong data-ms-result-title></strong>
+                    <span data-ms-result-detail></span>
+                </div>
                 <div class="ms-camera-msg" data-ms-camera-msg hidden>
                     <span data-ms-camera-text>Camera is off.</span>
                     <button type="button" class="ms-btn" data-ms-start-camera>Turn on camera</button>
                 </div>
-            </div>
-            <div class="ms-card ms-result" data-ms-result aria-live="polite">
-                <strong data-ms-result-title>Ready to scan</strong>
-                <span data-ms-result-detail>Point the camera at a product barcode.</span>
             </div>
             <div class="ms-card">
                 <ul class="ms-items" data-ms-items></ul>

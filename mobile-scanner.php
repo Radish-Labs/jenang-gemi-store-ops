@@ -255,3 +255,71 @@ function jg_mobile_scanner_phone_scan(PDO $pdo, string $employeeId, string $toke
 
     return ['ok' => true, 'active' => true, 'id' => (int) $pdo->lastInsertId()];
 }
+
+/**
+ * Desktop pushes its latest progress/result right away (the phone shows it).
+ */
+function jg_mobile_scanner_desktop_update(PDO $pdo, string $employeeId, string $token, mixed $summary, int $now): bool
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    $encodedSummary = jg_mobile_scanner_normalize_summary($summary);
+    if ($token === '' || $encodedSummary === null) return false;
+    $stmt = $pdo->prepare(
+        'UPDATE store_ops_mobile_scanner_v1 SET summary_json = :summary, desktop_seen_at = :seen_at, updated_at = :updated_at
+         WHERE employee_id = :employee_id AND session_token = :token'
+    );
+    $stmt->execute([':summary' => $encodedSummary, ':seen_at' => $now, ':updated_at' => $now, ':employee_id' => $employeeId, ':token' => $token]);
+    return $stmt->rowCount() > 0 || (jg_mobile_scanner_row($pdo, $employeeId)['session_token'] ?? '') === $token;
+}
+
+/**
+ * Short signature of what the phone shows, so a waiting phone request can
+ * return the moment anything changes.
+ */
+function jg_mobile_scanner_phone_signature(array $state): string
+{
+    if (!($state['active'] ?? false)) return 'idle';
+    $summary = is_array($state['summary'] ?? null) ? $state['summary'] : [];
+    return implode(':', [
+        (string) ($state['session'] ?? ''),
+        (string) ($summary['status']['seq'] ?? 0),
+        (string) ($summary['scanned'] ?? 0),
+        (string) ($summary['required'] ?? 0),
+    ]);
+}
+
+/**
+ * Hold a request open (up to $waitSeconds) until $check returns a result,
+ * checking every 150 ms. Used so scans and results arrive immediately
+ * instead of on the next timed refresh.
+ */
+function jg_mobile_scanner_wait(callable $check, float $waitSeconds): array
+{
+    $deadline = microtime(true) + max(0.0, min(12.0, $waitSeconds));
+    while (true) {
+        [$done, $result] = $check(time());
+        if ($done || microtime(true) >= $deadline || connection_aborted()) {
+            return $result;
+        }
+        usleep(150000);
+    }
+}
+
+function jg_mobile_scanner_desktop_wait(PDO $pdo, string $employeeId, string $token, int $afterId, mixed $summary, float $waitSeconds): array
+{
+    $first = true;
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $employeeId, $token, $afterId, $summary, &$first): array {
+        $result = jg_mobile_scanner_desktop_poll($pdo, $employeeId, $token, $afterId, $first ? $summary : null, $now);
+        $first = false;
+        return [!$result['active'] || $result['codes'] !== [], $result];
+    }, $waitSeconds);
+}
+
+function jg_mobile_scanner_phone_wait(PDO $pdo, string $employeeId, string $known, float $waitSeconds): array
+{
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $employeeId, $known): array {
+        $state = jg_mobile_scanner_phone_state($pdo, $employeeId, $now);
+        $state['signature'] = jg_mobile_scanner_phone_signature($state);
+        return [$state['signature'] !== $known, $state];
+    }, $waitSeconds);
+}

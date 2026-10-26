@@ -211,12 +211,17 @@ function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
                                     <div>
                                         <h4>Mobile scanner</h4>
                                         <p>No USB scanner? Use a phone camera instead. The phone scans for whoever is signed in with the same profile.</p>
+                                        <p class="admin-mobile-scanner-mode" data-mobile-scanner-mode>This computer uses the <strong>USB scanner</strong>.</p>
                                     </div>
                                 </div>
                                 <div class="admin-scanner-health-actions admin-mobile-scanner-actions">
                                     <button type="button" class="admin-primary-btn" data-mobile-scanner-open aria-expanded="false">
                                         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
                                         Use mobile scanner
+                                    </button>
+                                    <button type="button" class="admin-ghost-btn" data-mobile-scanner-usb hidden>
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3M7 12h10"/></svg>
+                                        Switch back to USB scanner
                                     </button>
                                 </div>
                                 <div class="admin-mobile-scanner-card" data-mobile-scanner-card hidden>

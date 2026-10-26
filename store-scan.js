@@ -22,6 +22,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stockWarningProducts = document.querySelector('[data-stock-warning-products]');
   const stockWarningDismiss = document.querySelector('[data-stock-warning-dismiss]');
   const mobileScannerStatus = document.querySelector('[data-mobile-scanner-status]');
+  const mobileScannerRow = document.querySelector('[data-mobile-scanner-row]');
+  const mobileScannerUseUsb = document.querySelector('[data-mobile-scanner-use-usb]');
+  const scannerModeKey = 'jg-store-scanner-mode';
+  const phoneModeOn = () => {
+    try { return window.localStorage.getItem(scannerModeKey) === 'phone'; } catch (_error) { return false; }
+  };
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -495,8 +501,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   let scanStatusState = { title: '', detail: '', tone: 'info', seq: 0 };
+  let pushMobileSummary = () => {};
   const setScanStatus = (title, detail = '', tone = 'info') => {
     scanStatusState = { title, detail, tone, seq: scanStatusState.seq + 1 };
+    pushMobileSummary();
     if (!scanStatus) return;
     scanStatus.innerHTML = `
       <strong>${escapeHtml(title)}</strong>
@@ -852,12 +860,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let mobileScannerError = '';
   const renderMobileScannerStatus = () => {
-    if (!mobileScannerStatus) return;
+    if (!mobileScannerStatus || !mobileScannerRow) return;
+    const waiting = !mobileScannerError && !mobilePhoneConnected;
     mobileScannerStatus.classList.toggle('is-error', Boolean(mobileScannerError));
+    mobileScannerStatus.classList.toggle('is-waiting', waiting);
     mobileScannerStatus.textContent = mobileScannerError
       ? `Phone scanner unavailable: ${mobileScannerError}`
-      : 'Phone scanner connected';
-    mobileScannerStatus.hidden = !mobileScannerError && (!mobileSession || !mobilePhoneConnected);
+      : (mobilePhoneConnected ? 'Phone scanner connected' : 'Phone scanner on · waiting for the phone');
+    mobileScannerRow.hidden = !mobileScannerError && !mobileSession;
   };
 
   const postMobileScanner = (body, keepalive = false) => fetch(mobileScannerEndpoint, {
@@ -872,22 +882,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     return payload;
   }));
 
+  // While a phone is connected the server holds each poll open until a scan
+  // arrives (up to 10 s), so phone scans land immediately. Without a phone,
+  // check every 3 s for one to connect.
   const scheduleMobilePoll = () => {
     window.clearTimeout(mobileTimer);
     if (!mobileSession || printRedirecting) return;
-    mobileTimer = window.setTimeout(pollMobileScanner, mobilePhoneConnected ? 700 : 3000);
+    mobileTimer = window.setTimeout(pollMobileScanner, mobilePhoneConnected ? 0 : 3000);
+  };
+
+  // Send each new result to the phone right away instead of on the next poll.
+  let mobileUpdateTimer = 0;
+  pushMobileSummary = () => {
+    if (!mobileSession) return;
+    window.clearTimeout(mobileUpdateTimer);
+    mobileUpdateTimer = window.setTimeout(() => {
+      if (!mobileSession) return;
+      const summary = JSON.stringify(mobileSummary());
+      if (summary === mobileSentSummary) return;
+      mobileSentSummary = summary;
+      postMobileScanner({ action: 'update', session: mobileSession, summary: JSON.parse(summary) }, printRedirecting)
+        .catch(() => { mobileSentSummary = ''; });
+    }, 30);
   };
 
   async function pollMobileScanner() {
     if (!mobileSession || mobilePolling) return;
     mobilePolling = true;
     let receivedCodes = false;
+    let pollFailed = false;
     try {
       const summary = JSON.stringify(mobileSummary());
       const payload = await postMobileScanner({
         action: 'poll',
         session: mobileSession,
         after: mobileAfterId,
+        wait: mobilePhoneConnected ? 10 : 0,
         summary: summary === mobileSentSummary ? null : JSON.parse(summary)
       });
       mobileSentSummary = summary;
@@ -903,12 +933,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
     } catch (_error) {
-      // Keep the USB scanner working; retry the phone relay later.
+      // Keep the USB scanner working; retry the phone relay shortly.
+      pollFailed = true;
     } finally {
       mobilePolling = false;
       renderMobileScannerStatus();
-      // Send the result of new scans back to the phone straight away.
-      if (receivedCodes && mobileSession) {
+      if (pollFailed && mobileSession) {
+        window.clearTimeout(mobileTimer);
+        mobileTimer = window.setTimeout(pollMobileScanner, 2000);
+      } else if (receivedCodes && mobileSession) {
         window.setTimeout(pollMobileScanner, 0);
       } else {
         scheduleMobilePoll();
@@ -917,7 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const startMobileScanner = async () => {
-    if (!order) return;
+    if (!order || !phoneModeOn()) return;
     try {
       const summary = mobileSummary();
       const payload = await postMobileScanner({ action: 'start', order_id: String(order.id || orderId || ''), summary });
@@ -941,6 +974,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     mobileSession = '';
     postMobileScanner({ action: 'end', session }, true).catch(() => {});
   };
+
+  mobileScannerUseUsb?.addEventListener('click', () => {
+    try { window.localStorage.setItem(scannerModeKey, 'usb'); } catch (_error) { /* Session still ends below. */ }
+    endMobileScanner();
+    mobileScannerError = '';
+    mobilePhoneConnected = false;
+    renderMobileScannerStatus();
+    setScanStatus('Ready to scan', 'Using the USB scanner. Turn the phone back on in Settings.');
+  });
 
   const initialize = async () => {
     applyStockRows(readCachedStockRows());

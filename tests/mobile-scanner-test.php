@@ -94,6 +94,24 @@ $third = jg_mobile_scanner_start($pdo, 'hani', 'ORDER-3', null, $now + 100);
 jg_mobile_scanner_end($pdo, 'hani', $third['session'], $now + 101);
 mobile_scanner_expect(['active' => false], jg_mobile_scanner_phone_state($pdo, 'hani', $now + 101), 'Ending the scan page should release the phone.');
 
+// Waiting requests return as soon as something changes, and give up after the wait.
+$live = jg_mobile_scanner_start($pdo, 'hani', 'ORDER-4', ['status' => ['title' => 'Ready', 'seq' => 1]], time());
+$state = jg_mobile_scanner_phone_wait($pdo, 'hani', 'idle', 5);
+mobile_scanner_expect('ORDER-4', $state['order_id'], 'A waiting phone should get a new order immediately.');
+$started = microtime(true);
+$same = jg_mobile_scanner_phone_wait($pdo, 'hani', $state['signature'], 0.4);
+mobile_scanner_expect($state['signature'], $same['signature'], 'Nothing changed, so the phone wait should time out unchanged.');
+mobile_scanner_expect(true, microtime(true) - $started >= 0.35, 'The phone wait should actually wait.');
+mobile_scanner_expect(true, jg_mobile_scanner_desktop_update($pdo, 'hani', $live['session'], ['status' => ['title' => 'Scan accepted', 'tone' => 'ok', 'seq' => 2]], time()), 'Desktop result should be stored.');
+$changed = jg_mobile_scanner_phone_wait($pdo, 'hani', $state['signature'], 5);
+mobile_scanner_expect('Scan accepted', $changed['summary']['status']['title'], 'A waiting phone should get the new result immediately.');
+jg_mobile_scanner_phone_scan($pdo, 'hani', $live['session'], '8991234567891', time());
+$started = microtime(true);
+$codes = jg_mobile_scanner_desktop_wait($pdo, 'hani', $live['session'], 0, null, 5);
+mobile_scanner_expect(['8991234567891'], array_column($codes['codes'], 'code'), 'A waiting desktop should get phone scans.');
+mobile_scanner_expect(true, microtime(true) - $started < 1, 'A waiting desktop should return immediately when a scan is queued.');
+mobile_scanner_expect(false, jg_mobile_scanner_desktop_update($pdo, 'hani', 'stale-token', ['status' => ['title' => 'x', 'seq' => 9]], time()), 'Old scan pages cannot overwrite results.');
+
 try {
     jg_mobile_scanner_start($pdo, '', 'ORDER-1', null, $now);
     fwrite(STDERR, "Profile-less start accepted\n");

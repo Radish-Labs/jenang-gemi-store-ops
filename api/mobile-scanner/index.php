@@ -39,7 +39,9 @@ try {
 
     $profile = ['profile_id' => $employeeId, 'profile_name' => $employeeName];
     if ($method === 'GET' && $action === 'phone_state') {
-        jg_mobile_scanner_respond(['ok' => true] + $profile + jg_mobile_scanner_phone_state($pdo, $employeeId, $now));
+        jg_mobile_scanner_respond(['ok' => true] + $profile + jg_mobile_scanner_phone_wait(
+            $pdo, $employeeId, (string) ($_GET['known'] ?? ''), (float) ($_GET['wait'] ?? 0)
+        ));
     }
     if ($method === 'GET' && $action === 'status') {
         $row = jg_mobile_scanner_row($pdo, $employeeId);
@@ -58,9 +60,13 @@ try {
                 $pdo, $employeeId, (string) ($payload['order_id'] ?? ''), $payload['summary'] ?? null, $now
             ));
         case 'poll':
-            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_scanner_desktop_poll(
-                $pdo, $employeeId, $token, (int) ($payload['after'] ?? 0), $payload['summary'] ?? null, $now
+            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_scanner_desktop_wait(
+                $pdo, $employeeId, $token, (int) ($payload['after'] ?? 0), $payload['summary'] ?? null, (float) ($payload['wait'] ?? 0)
             ));
+        case 'update':
+            jg_mobile_scanner_respond(['ok' => true, 'active' => jg_mobile_scanner_desktop_update(
+                $pdo, $employeeId, $token, $payload['summary'] ?? null, $now
+            )]);
         case 'end':
             jg_mobile_scanner_end($pdo, $employeeId, $token, $now);
             jg_mobile_scanner_respond(['ok' => true]);
