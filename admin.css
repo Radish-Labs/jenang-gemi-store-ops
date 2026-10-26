@@ -13010,7 +13010,7 @@ button.admin-store-sidebar-profile:hover {
   font-size: 12px;
   text-align: center;
 }
-.admin-mobile-scanner-qr svg { width: 100%; height: 100%; display: block; }
+.admin-mobile-scanner-qr img { display: block; max-width: none; image-rendering: pixelated; }
 .admin-mobile-scanner-steps ol { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; }
 .admin-mobile-scanner-link { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .admin-mobile-scanner-link code {

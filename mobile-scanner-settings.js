@@ -36,9 +36,33 @@ document.addEventListener('DOMContentLoaded', () => {
       const qr = window.qrcode(0, 'M');
       qr.addData(url);
       qr.make();
-      // A 4-module white margin (quiet zone) is required for phone cameras.
-      qrNode.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 16, scalable: true });
-      qrNode.querySelector('svg')?.setAttribute('shape-rendering', 'crispEdges');
+      // Draw a solid image where every module is the same whole number of
+      // screen pixels (also under Windows 125%/150% scaling), with the
+      // standard 4-module white margin. Scaled vector modules can show faint
+      // seams or uneven widths that some phone scanners reject.
+      const modules = qr.getModuleCount();
+      const quiet = 4;
+      const total = modules + quiet * 2;
+      const ratio = window.devicePixelRatio || 1;
+      const cell = Math.max(3, Math.floor((232 * ratio) / total));
+      const canvas = document.createElement('canvas');
+      canvas.width = total * cell;
+      canvas.height = total * cell;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#000000';
+      for (let row = 0; row < modules; row += 1) {
+        for (let col = 0; col < modules; col += 1) {
+          if (qr.isDark(row, col)) context.fillRect((col + quiet) * cell, (row + quiet) * cell, cell, cell);
+        }
+      }
+      const image = new Image();
+      image.alt = 'QR code for the mobile scanner link';
+      image.src = canvas.toDataURL('image/png');
+      image.width = canvas.width / ratio;
+      image.height = canvas.height / ratio;
+      qrNode.replaceChildren(image);
       qrRendered = true;
     } catch (_error) {
       qrNode.textContent = 'Open the link below on the phone.';
