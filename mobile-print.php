@@ -95,7 +95,8 @@ function jg_mobile_print_clean_layout(array $layout): array
     $rotate = (int) (round(((float) ($layout['rotate'] ?? 0)) / 90) * 90);
     $rotate = (($rotate % 360) + 360) % 360;
     $size = (int) round((float) ($layout['size'] ?? 100));
-    return ['rotate' => $rotate, 'size' => max(50, min(150, $size))];
+    $page = (int) round((float) ($layout['page'] ?? 0));
+    return ['rotate' => $rotate, 'size' => max(50, min(150, $size)), 'page' => max(0, min(999, $page))];
 }
 
 /**

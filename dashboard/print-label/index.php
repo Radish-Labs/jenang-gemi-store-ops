@@ -86,6 +86,17 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
                         <canvas data-remote-layout-canvas aria-label="Label preview" hidden></canvas>
                         <p data-remote-layout-note>Loading the label…</p>
                     </div>
+                    <div class="admin-remote-layout-pages" data-remote-layout-pages hidden>
+                        <div class="admin-remote-layout-pager">
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-prev aria-label="Previous page">‹</button>
+                            <strong data-remote-layout-page>Page 1 of 1</strong>
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-next aria-label="Next page">›</button>
+                        </div>
+                        <div class="admin-remote-layout-choice" role="group" aria-label="Pages to print">
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-all aria-pressed="true">All pages</button>
+                            <button type="button" class="admin-ghost-btn" data-remote-layout-one aria-pressed="false">Only this page</button>
+                        </div>
+                    </div>
                     <div class="admin-remote-layout-controls">
                         <button type="button" class="admin-ghost-btn" data-remote-layout-rotate>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>

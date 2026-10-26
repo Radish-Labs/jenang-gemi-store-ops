@@ -52,7 +52,9 @@
   const cleanLayout = (layout) => {
     const rotate = ((Math.round(Number(layout?.rotate || 0) / 90) * 90) % 360 + 360) % 360;
     const size = Math.min(150, Math.max(50, Math.round(Number(layout?.size || 100))));
-    return { rotate, size };
+    // page: 0 prints every page, otherwise only that page (counting from 1).
+    const page = Math.min(999, Math.max(0, Math.round(Number(layout?.page || 0)))) || 0;
+    return { rotate, size, page };
   };
   const isDefaultLayout = (layout) => {
     const clean = cleanLayout(layout);
@@ -98,5 +100,19 @@
     return output.save();
   };
 
-  global.JGStoreOpsLabelReshape = { labelWidth, labelHeight, pageFitsLabel, placement, reshape, cleanLayout, isDefaultLayout, applyLayout };
+  // Keep only one page (counting from 1). Resolves to null when the label
+  // doesn't have that page, so it prints whole instead of printing nothing.
+  const keepPage = async (bytes, pageNumber, pdfLib = global.PDFLib) => {
+    if (!pdfLib) throw new Error('Label tools are unavailable.');
+    const source = await pdfLib.PDFDocument.load(bytes);
+    const count = source.getPageCount();
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > count) return null;
+    if (count === 1) return null;
+    const output = await pdfLib.PDFDocument.create();
+    const [copied] = await output.copyPages(source, [pageNumber - 1]);
+    output.addPage(copied);
+    return output.save();
+  };
+
+  global.JGStoreOpsLabelReshape = { labelWidth, labelHeight, pageFitsLabel, placement, reshape, cleanLayout, isDefaultLayout, applyLayout, keepPage };
 })(typeof window !== 'undefined' ? window : globalThis);

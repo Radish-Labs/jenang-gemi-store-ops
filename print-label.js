@@ -727,10 +727,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chosenLayout = order?.print_layout || null;
   const preparedLabelBlob = async (raw, layout = chosenLayout) => {
     const labelReshape = window.JGStoreOpsLabelReshape || null;
-    if (layout && labelReshape && !labelReshape.isDefaultLayout(layout)) {
-      return new Blob([await labelReshape.applyLayout(await raw.arrayBuffer(), layout)], { type: 'application/pdf' });
-    }
-    return labelSizedBlob(raw);
+    const blob = layout && labelReshape && !labelReshape.isDefaultLayout(layout)
+      ? new Blob([await labelReshape.applyLayout(await raw.arrayBuffer(), layout)], { type: 'application/pdf' })
+      : await labelSizedBlob(raw);
+    const page = labelReshape && layout ? labelReshape.cleanLayout(layout).page : 0;
+    if (!page) return blob;
+    const single = await labelReshape.keepPage(await blob.arrayBuffer(), page);
+    return single ? new Blob([single], { type: 'application/pdf' }) : blob;
   };
 
   const loadLabel = async () => {
@@ -929,9 +932,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusNode) statusNode.textContent = 'Check the label';
     let raw = null;
     let pdfjs = null;
+    const pagesBox = section.querySelector('[data-remote-layout-pages]');
+    const pageLabel = section.querySelector('[data-remote-layout-page]');
+    const prevButton = section.querySelector('[data-remote-layout-prev]');
+    const nextButton = section.querySelector('[data-remote-layout-next]');
+    const allButton = section.querySelector('[data-remote-layout-all]');
+    const oneButton = section.querySelector('[data-remote-layout-one]');
+    const sendButton = section.querySelector('[data-remote-layout-send]');
     let current = { rotate: 0, size: 100 };
     let edited = false;
     let drawRun = 0;
+    let viewPage = 1;
+    let pageCount = 1;
+    let onlyThisPage = false;
+    const showPages = () => {
+      if (pagesBox) pagesBox.hidden = pageCount <= 1;
+      if (pageLabel) pageLabel.textContent = `Page ${viewPage} of ${pageCount}`;
+      if (prevButton) prevButton.disabled = viewPage <= 1;
+      if (nextButton) nextButton.disabled = viewPage >= pageCount;
+      if (allButton) {
+        allButton.textContent = `All ${pageCount} pages`;
+        allButton.setAttribute('aria-pressed', String(!onlyThisPage));
+      }
+      if (oneButton) {
+        oneButton.textContent = `Only page ${viewPage}`;
+        oneButton.setAttribute('aria-pressed', String(onlyThisPage));
+      }
+      if (sendButton) {
+        sendButton.textContent = pageCount > 1
+          ? (onlyThisPage ? `Print page ${viewPage} on computer` : `Print all ${pageCount} pages on computer`)
+          : 'Print on computer';
+      }
+    };
     const setControls = (enabled) => controls.forEach((button) => { button.disabled = !enabled; });
     setControls(false);
 
@@ -943,7 +975,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const blob = await preparedLabelBlob(raw, edited ? current : null);
         const data = new Uint8Array(await blob.arrayBuffer());
         const doc = await pdfjs.getDocument({ data }).promise;
-        const page = await doc.getPage(1);
+        pageCount = doc.numPages;
+        viewPage = Math.min(Math.max(1, viewPage), pageCount);
+        const page = await doc.getPage(viewPage);
         if (thisDraw !== drawRun) return;
         const base = page.getViewport({ scale: 1 });
         const ratio = window.devicePixelRatio || 1;
@@ -958,9 +992,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         canvas.hidden = false;
         section.dataset.drawn = String(thisDraw);
         if (note) {
-          note.textContent = doc.numPages > 1 ? `Page 1 of ${doc.numPages}. Every page prints the same way.` : '';
-          note.hidden = doc.numPages <= 1;
+          note.textContent = '';
+          note.hidden = true;
         }
+        showPages();
       } catch (_error) {
         if (thisDraw !== drawRun) return;
         if (note) { note.hidden = false; note.textContent = 'The preview could not be drawn. The label can still be printed.'; }
@@ -975,11 +1010,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     section.querySelector('[data-remote-layout-smaller]')?.addEventListener('click', () => change({ ...current, size: current.size - 5 }));
     section.querySelector('[data-remote-layout-larger]')?.addEventListener('click', () => change({ ...current, size: current.size + 5 }));
     resetButton?.addEventListener('click', () => change({ rotate: 0, size: 100 }));
-    section.querySelector('[data-remote-layout-send]')?.addEventListener('click', () => {
+    prevButton?.addEventListener('click', () => { viewPage -= 1; showPages(); draw(); });
+    nextButton?.addEventListener('click', () => { viewPage += 1; showPages(); draw(); });
+    allButton?.addEventListener('click', () => { onlyThisPage = false; showPages(); });
+    oneButton?.addEventListener('click', () => { onlyThisPage = true; showPages(); });
+    sendButton?.addEventListener('click', () => {
       drawRun += 1;
       section.hidden = true;
       if (remotePanel) remotePanel.hidden = false;
-      resolve(edited ? { ...current } : null);
+      const page = onlyThisPage && pageCount > 1 ? viewPage : 0;
+      resolve(edited || page ? { ...current, page } : null);
     }, { once: true });
 
     (async () => {
