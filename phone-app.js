@@ -33,6 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Covers the whole site, so the installed app opens the board full screen.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(`${root}app-sw.js`, { scope: root }).catch(() => {});
+  }
+
   // Not running as the installed app (Chrome's bar is showing): offer it.
   const standalone = window.matchMedia('(display-mode: standalone)').matches
     || window.matchMedia('(display-mode: fullscreen)').matches
