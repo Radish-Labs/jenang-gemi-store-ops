@@ -850,9 +850,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     status: scanStatusState
   });
 
+  let mobileScannerError = '';
   const renderMobileScannerStatus = () => {
     if (!mobileScannerStatus) return;
-    mobileScannerStatus.hidden = !mobileSession || !mobilePhoneConnected;
+    mobileScannerStatus.classList.toggle('is-error', Boolean(mobileScannerError));
+    mobileScannerStatus.textContent = mobileScannerError
+      ? `Phone scanner unavailable: ${mobileScannerError}`
+      : 'Phone scanner connected';
+    mobileScannerStatus.hidden = !mobileScannerError && (!mobileSession || !mobilePhoneConnected);
   };
 
   const postMobileScanner = (body, keepalive = false) => fetch(mobileScannerEndpoint, {
@@ -917,12 +922,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const summary = mobileSummary();
       const payload = await postMobileScanner({ action: 'start', order_id: String(order.id || orderId || ''), summary });
       mobileSession = String(payload.session || '');
+      mobileScannerError = '';
       mobileSentSummary = JSON.stringify(summary);
       mobilePhoneConnected = Boolean(payload.phone_connected);
       renderMobileScannerStatus();
       scheduleMobilePoll();
-    } catch (_error) {
+    } catch (error) {
       mobileSession = '';
+      mobileScannerError = error instanceof Error ? error.message : 'Unable to reach the phone relay.';
+      renderMobileScannerStatus();
     }
   };
 

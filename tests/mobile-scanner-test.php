@@ -10,6 +10,18 @@ function mobile_scanner_expect(mixed $expected, mixed $actual, string $message):
     exit(1);
 }
 
+// Production MySQL runs with native prepares (EMULATE_PREPARES = false),
+// which reject a named placeholder used twice in one statement. SQLite
+// allows it, so check the SQL text directly.
+$source = (string) file_get_contents(dirname(__DIR__) . '/mobile-scanner.php');
+preg_match_all("/prepare\\(\\s*'((?:[^'\\\\]|\\\\.)*)'/s", $source, $statements);
+mobile_scanner_expect(true, count($statements[1]) >= 8, 'Expected to find the relay SQL statements.');
+foreach ($statements[1] as $sql) {
+    preg_match_all('/:[a-z_]+/', $sql, $names);
+    $repeated = array_keys(array_filter(array_count_values($names[0]), static fn (int $count): bool => $count > 1));
+    mobile_scanner_expect([], $repeated, 'MySQL native prepares reject repeated placeholders: ' . trim(preg_replace('/\s+/', ' ', $sql)));
+}
+
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
     echo "mobile-scanner-test: skipped (no pdo_sqlite)\n";
     exit(0);

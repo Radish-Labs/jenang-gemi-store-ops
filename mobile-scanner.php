@@ -131,13 +131,14 @@ function jg_mobile_scanner_start(PDO $pdo, string $employeeId, string $orderId, 
     $token = bin2hex(random_bytes(16));
     $pdo->prepare(
         'UPDATE store_ops_mobile_scanner_v1
-         SET session_token = :token, order_id = :order_id, summary_json = :summary, desktop_seen_at = :now, updated_at = :now
+         SET session_token = :token, order_id = :order_id, summary_json = :summary, desktop_seen_at = :seen_at, updated_at = :updated_at
          WHERE employee_id = :employee_id'
     )->execute([
         ':token' => $token,
         ':order_id' => $orderId,
         ':summary' => jg_mobile_scanner_normalize_summary($summary),
-        ':now' => $now,
+        ':seen_at' => $now,
+        ':updated_at' => $now,
         ':employee_id' => $employeeId,
     ]);
     $pdo->prepare('DELETE FROM store_ops_mobile_scanner_events_v1 WHERE employee_id = :employee_id OR created_at < :old')
@@ -161,9 +162,9 @@ function jg_mobile_scanner_desktop_poll(PDO $pdo, string $employeeId, string $to
     $encodedSummary = $summary === null ? null : jg_mobile_scanner_normalize_summary($summary);
     if ($encodedSummary !== null && $encodedSummary !== (string) ($row['summary_json'] ?? '')) {
         $pdo->prepare(
-            'UPDATE store_ops_mobile_scanner_v1 SET summary_json = :summary, desktop_seen_at = :now, updated_at = :now
+            'UPDATE store_ops_mobile_scanner_v1 SET summary_json = :summary, desktop_seen_at = :seen_at, updated_at = :updated_at
              WHERE employee_id = :employee_id AND session_token = :token'
-        )->execute([':summary' => $encodedSummary, ':now' => $now, ':employee_id' => $employeeId, ':token' => $token]);
+        )->execute([':summary' => $encodedSummary, ':seen_at' => $now, ':updated_at' => $now, ':employee_id' => $employeeId, ':token' => $token]);
     } elseif ((int) $row['desktop_seen_at'] < $now - JG_MOBILE_SCANNER_SEEN_WRITE_SECONDS) {
         $pdo->prepare(
             'UPDATE store_ops_mobile_scanner_v1 SET desktop_seen_at = :now

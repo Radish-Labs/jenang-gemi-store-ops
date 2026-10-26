@@ -13026,6 +13026,7 @@ button.admin-store-sidebar-profile:hover {
 .admin-mobile-scanner-phone { margin: 10px 0 0; font-size: 12px; color: var(--admin-muted); }
 .admin-mobile-scanner-phone.is-connected { color: var(--admin-success); font-weight: 700; }
 .admin-sync-status.admin-mobile-scanner-live { color: var(--admin-success); }
+.admin-sync-status.admin-mobile-scanner-live.is-error { color: var(--admin-danger); }
 @media (max-width: 640px) {
   .admin-mobile-scanner-card { grid-template-columns: 1fr; }
 }
