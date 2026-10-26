@@ -13,7 +13,8 @@ function mobile_scanner_expect(mixed $expected, mixed $actual, string $message):
 // Production MySQL runs with native prepares (EMULATE_PREPARES = false),
 // which reject a named placeholder used twice in one statement. SQLite
 // allows it, so check the SQL text directly.
-$source = (string) file_get_contents(dirname(__DIR__) . '/mobile-scanner.php');
+$source = (string) file_get_contents(dirname(__DIR__) . '/mobile-scanner.php')
+    . (string) file_get_contents(dirname(__DIR__) . '/mobile-print.php');
 preg_match_all("/prepare\\(\\s*'((?:[^'\\\\]|\\\\.)*)'/s", $source, $statements);
 mobile_scanner_expect(true, count($statements[1]) >= 8, 'Expected to find the relay SQL statements.');
 foreach ($statements[1] as $sql) {

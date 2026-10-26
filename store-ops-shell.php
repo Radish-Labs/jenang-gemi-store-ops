@@ -205,7 +205,7 @@ function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
 {
     $mobileScannerSettingsJsVersion = (string) @filemtime(__DIR__ . '/mobile-scanner-settings.js');
     ?>
-                            <div class="admin-mobile-scanner-settings" data-mobile-scanner-settings data-mobile-scanner-url="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-mobile-scanner-endpoint="<?php echo htmlspecialchars($rootPrefix . 'api/mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>">
+                            <div class="admin-mobile-scanner-settings" data-mobile-scanner-settings data-mobile-scanner-url="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-mobile-scanner-endpoint="<?php echo htmlspecialchars($rootPrefix . 'api/mobile-scanner/', ENT_QUOTES, 'UTF-8'); ?>" data-store-root="<?php echo htmlspecialchars($rootPrefix, ENT_QUOTES, 'UTF-8'); ?>">
                                 <div class="admin-settings-section-head">
                                     <span class="admin-settings-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg></span>
                                     <div>
@@ -241,6 +241,8 @@ function jg_store_ops_mobile_scanner_settings_section(string $rootPrefix): void
                                     </div>
                                 </div>
                                 <script src="<?php echo htmlspecialchars($rootPrefix . 'mobile-scanner-settings.js?v=' . urlencode($mobileScannerSettingsJsVersion ?: '1'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+                                <script src="<?php echo htmlspecialchars($rootPrefix . 'store-device.js?v=' . urlencode((string) @filemtime(__DIR__ . '/store-device.js')), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+                                <script src="<?php echo htmlspecialchars($rootPrefix . 'print-station.js?v=' . urlencode((string) @filemtime(__DIR__ . '/print-station.js')), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
                             </div>
     <?php
 }

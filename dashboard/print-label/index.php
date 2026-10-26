@@ -81,9 +81,19 @@ $labelReshapeJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/label-resha
                     <button type="button" class="admin-ghost-btn" data-print-again>Print again</button>
                 </section>
                 <button type="button" class="admin-ghost-btn admin-label-browser-print" data-print-browser-fallback hidden>Use the browser print dialog</button>
+                <section class="admin-remote-print" data-remote-print aria-live="polite" hidden>
+                    <span class="admin-remote-print-icon" data-remote-print-icon aria-hidden="true"></span>
+                    <strong data-remote-print-title>Sending to the computer…</strong>
+                    <p data-remote-print-detail>The label prints on the packing computer.</p>
+                    <div class="admin-remote-print-actions">
+                        <button type="button" class="admin-primary-btn" data-remote-print-retry hidden>Send again</button>
+                        <a class="admin-ghost-btn" href="../" data-remote-print-back>Back to orders</a>
+                    </div>
+                </section>
             </section>
         </main>
     <?php jg_store_ops_shell_close(); ?>
+    <script src="../../store-device.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/store-device.js')); ?>" defer></script>
     <script src="../../scan-handoff.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/scan-handoff.js')); ?>" defer></script>
     <script src="../../store-shell.js?v=<?php echo urlencode($storeShellJsVersion ?: '1'); ?>" defer></script>
     <script src="../../assets/vendor/pdf-lib.min.js?v=1.17.1" defer></script>

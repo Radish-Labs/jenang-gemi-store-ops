@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderMode = () => {
     const phone = readMode() === 'phone';
     modeNode.innerHTML = phone
-      ? 'This computer uses the <strong>phone scanner</strong>. The USB scanner also still works.'
+      ? 'This computer uses the <strong>phone</strong>: the phone scans, and orders finished on the phone print here. Keep a Store Ops tab open. The USB scanner also still works.'
       : 'This computer uses the <strong>USB scanner</strong>.';
     usbButton.hidden = !phone;
     card.hidden = !phone;

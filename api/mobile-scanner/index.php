@@ -4,12 +4,13 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/auth-runtime.php';
 require_once dirname(__DIR__, 2) . '/sku-db-bootstrap.php';
 require_once dirname(__DIR__, 2) . '/mobile-scanner.php';
+require_once dirname(__DIR__, 2) . '/mobile-print.php';
+require_once dirname(__DIR__, 2) . '/store-ops-fulfillment-runtime.php';
+require_once dirname(__DIR__, 2) . '/scan-handoff.php';
 
 jg_admin_require_auth_json();
 $employeeId = jg_admin_current_employee_id();
 $employeeName = jg_admin_current_employee_name();
-// Polled often by both devices; never hold the PHP session lock while working.
-session_write_close();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -32,10 +33,35 @@ if ($method === 'POST') {
 }
 $action = strtolower(trim((string) ($payload['action'] ?? $_GET['action'] ?? 'phone_state')));
 $now = time();
+// Polled often by both devices; never hold the PHP session lock while working.
+// Only station_take writes the session (the computer's label page reads the
+// order from it).
+if ($action !== 'station_take') {
+    session_write_close();
+}
+
+/**
+ * The order must be claimed by this profile and still open.
+ *
+ * @return array{source_platform:string,source_account:string,order_id:string}
+ */
+function jg_mobile_print_verified_key(PDO $pdo, array $order, string $employeeId): array
+{
+    $key = jg_store_ops_fulfillment_key_from_order($order);
+    jg_store_ops_fulfillment_validate_key($key);
+    jg_store_ops_scan_handoff_prepare($order, $key);
+    $row = jg_store_ops_fulfillment_fetch_order($pdo, $key, false);
+    $state = jg_store_ops_fulfillment_state_from_row($row, $employeeId);
+    if (!$row || empty($state['claimedBy']) || empty($state['currentEmployeeCanWork'])) {
+        throw new InvalidArgumentException('This order is completed, released or assigned to another employee. Return to the board.');
+    }
+    return $key;
+}
 
 try {
     $pdo = jg_store_ops_sku_db();
     jg_mobile_scanner_ensure_schema($pdo);
+    jg_mobile_print_ensure_schema($pdo);
 
     $profile = ['profile_id' => $employeeId, 'profile_name' => $employeeName];
     if ($method === 'GET' && $action === 'phone_state') {
@@ -48,6 +74,14 @@ try {
         jg_mobile_scanner_respond(['ok' => true] + $profile + [
             'phone_connected' => $row !== null && jg_mobile_scanner_phone_connected($row, $now),
         ]);
+    }
+    if ($method === 'GET' && $action === 'print_job') {
+        jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_job_wait(
+            $pdo, $employeeId, (int) ($_GET['job'] ?? 0), (string) ($_GET['known'] ?? ''), (float) ($_GET['wait'] ?? 0)
+        ));
+    }
+    if ($method === 'GET' && $action === 'station') {
+        jg_mobile_scanner_respond(['ok' => true, 'station_online' => jg_mobile_print_station_online($pdo, $employeeId, $now)]);
     }
     if ($method !== 'POST') {
         jg_mobile_scanner_respond(['ok' => false, 'error' => 'Unknown mobile scanner action.'], 400);
@@ -70,6 +104,34 @@ try {
         case 'end':
             jg_mobile_scanner_end($pdo, $employeeId, $token, $now);
             jg_mobile_scanner_respond(['ok' => true]);
+        case 'print_request':
+            $order = is_array($payload['order'] ?? null) ? $payload['order'] : [];
+            $key = jg_mobile_print_verified_key($pdo, $order, $employeeId);
+            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_request($pdo, $employeeId, $order, $key, $now));
+        case 'station_wait':
+            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_station_wait($pdo, $employeeId, (float) ($payload['wait'] ?? 0)));
+        case 'station_take':
+            $taken = jg_mobile_print_take($pdo, $employeeId, (int) ($payload['job'] ?? 0), $now);
+            if ($taken === null) {
+                session_write_close();
+                jg_mobile_scanner_respond(['ok' => true, 'taken' => false]);
+            }
+            try {
+                jg_mobile_print_verified_key($pdo, $taken['order'], $employeeId);
+                $handoff = jg_store_ops_scan_handoff_save($taken['order'], $taken['key'], $employeeId);
+                if (!session_write_close()) {
+                    throw new RuntimeException('Unable to save the order for printing.');
+                }
+            } catch (Throwable $error) {
+                session_write_close();
+                jg_mobile_print_set_status($pdo, $employeeId, $taken['job'], 'failed', $error instanceof InvalidArgumentException ? $error->getMessage() : 'The computer could not open this order. Try again.', $now);
+                throw $error;
+            }
+            jg_mobile_scanner_respond(['ok' => true, 'taken' => true, 'job' => $taken['job'], 'handoff' => $handoff] + $taken['key']);
+        case 'station_status':
+            jg_mobile_scanner_respond(['ok' => true, 'updated' => jg_mobile_print_set_status(
+                $pdo, $employeeId, (int) ($payload['job'] ?? 0), (string) ($payload['status'] ?? ''), (string) ($payload['detail'] ?? ''), $now
+            )]);
         case 'scan':
             jg_mobile_scanner_respond(jg_mobile_scanner_phone_scan(
                 $pdo, $employeeId, $token, (string) ($payload['code'] ?? ''), $now

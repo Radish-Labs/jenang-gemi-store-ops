@@ -30,6 +30,7 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
+    <link rel="stylesheet" href="../scan-checklist.css?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/scan-checklist.css')); ?>">
     <style>
         :root {
             --ms-bg: #0b0c0f;
@@ -43,6 +44,16 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
             --ms-button: #f4f5f7;
             --ms-button-text: #0b0c0f;
         }
+        /* Shared checklist colours follow this page's theme. */
+        :root, :root[data-admin-theme="light"] {
+            --admin-success: var(--ms-ok);
+            --admin-text: var(--ms-text);
+            --admin-muted: var(--ms-muted);
+            --admin-surface-soft: var(--ms-card);
+            --admin-border: var(--ms-line);
+            --admin-danger: var(--ms-error);
+        }
+        .ms-list { margin-bottom: 12px; }
         :root[data-admin-theme="light"] {
             --ms-bg: #f4f5f7;
             --ms-card: #ffffff;
@@ -66,6 +77,7 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
         .ms-head h1 { font: 700 18px/1.2 "Space Grotesk", sans-serif; margin: 0; }
         .ms-head small { display: block; color: var(--ms-muted); font-size: 12px; margin-top: 2px; }
         .ms-head .ms-build { font: 500 11px/1.2 "Space Grotesk", sans-serif; letter-spacing: .04em; opacity: .8; }
+        .ms-head-links { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
         .ms-head a { color: var(--ms-muted); font-size: 12px; text-decoration: none; border: 1px solid var(--ms-line); border-radius: 999px; padding: 6px 10px; white-space: nowrap; }
         .ms-card { background: var(--ms-card); border: 1px solid var(--ms-line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
         .ms-wait { text-align: center; padding: 32px 18px; }
@@ -92,13 +104,6 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
         .ms-result.is-ok strong { color: #34d399; }
         .ms-result.is-error strong { color: #f87171; }
         .ms-result span { display: block; color: #c9cdd4; font-size: 12px; line-height: 1.35; }
-        .ms-items { list-style: none; margin: 0; padding: 0; }
-        .ms-items li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--ms-line); font-size: 14px; }
-        .ms-items li:first-child { border-top: 0; }
-        .ms-items li span small { display: block; color: var(--ms-muted); font-size: 12px; margin-top: 2px; }
-        .ms-items li b { white-space: nowrap; }
-        .ms-items li.is-done { color: var(--ms-muted); }
-        .ms-items li.is-done b { color: var(--ms-ok); }
         .ms-manual { display: flex; gap: 8px; }
         .ms-manual input { flex: 1; min-width: 0; min-height: 44px; border-radius: 12px; border: 1px solid var(--ms-line); background: var(--ms-bg); color: var(--ms-text); padding: 0 12px; font: 500 16px "Plus Jakarta Sans", sans-serif; }
         .ms-error { color: var(--ms-error); font-size: 13px; margin: 0 0 12px; }
@@ -120,7 +125,10 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
                 <small>Signed in as <b data-ms-profile><?php echo htmlspecialchars($employeeName !== '' ? $employeeName : 'Store Ops', ENT_QUOTES, 'UTF-8'); ?></b></small>
                 <small class="ms-build">Build <?php echo htmlspecialchars(JG_STORE_OPS_BUILD, ENT_QUOTES, 'UTF-8'); ?></small>
             </div>
-            <a href="../logout/">Switch profile</a>
+            <div class="ms-head-links">
+                <a href="../dashboard/">← Orders</a>
+                <a href="../logout/">Switch profile</a>
+            </div>
         </header>
 
         <p class="ms-error" data-ms-error hidden></p>
@@ -164,15 +172,15 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
                     <button type="button" class="ms-btn" data-ms-start-camera>Turn on camera</button>
                 </div>
             </div>
-            <div class="ms-card">
-                <ul class="ms-items" data-ms-items></ul>
-            </div>
+            <div class="ms-list" data-ms-items></div>
             <form class="ms-card ms-manual" data-ms-manual>
                 <input type="text" inputmode="numeric" autocomplete="off" placeholder="Type barcode" aria-label="Type barcode" data-ms-manual-input>
                 <button type="submit" class="ms-btn">Send</button>
             </form>
         </section>
     </main>
+    <script src="../scan-checklist.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/scan-checklist.js')); ?>" defer></script>
+    <script src="../camera-scanner.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/camera-scanner.js')); ?>" defer></script>
     <script src="../mobile-scanner.js?v=<?php echo urlencode($mobileScannerJsVersion ?: '1'); ?>" defer></script>
 </body>
 </html>

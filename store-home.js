@@ -3323,7 +3323,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!order) return;
     const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
     const originalLabel = button?.textContent || 'Lanjut';
-    const scanPage = window.open('', '_blank');
+    // Phones (and the installed app) continue in the same screen.
+    const scanPage = window.JGStoreDevice?.isPhone() ? null : window.open('', '_blank');
     if (button) {
       button.disabled = true;
       button.textContent = 'Memproses…';

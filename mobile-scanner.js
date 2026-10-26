@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
 
   const endpoint = root.dataset.endpoint || '../api/mobile-scanner/';
-  const zxingUrl = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
   const $ = (selector) => root.querySelector(selector);
   const waitingNode = $('[data-ms-waiting]');
   const activeNode = $('[data-ms-active]');
@@ -40,23 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let pollController = null;
   let knownSignature = '';
   let currentSummary = null;
-  let stream = null;
-  let detector = null;
-  let zxingReader = null;
-  let detectTimer = 0;
-  let cameraStarting = false;
-  let lastCode = '';
-  let lastCodeAt = 0;
-  let lastAnyAt = 0;
+  let currentItems = null;
   let lastStatusSeq = -1;
-  let wakeLock = null;
-  let audioContext = null;
+  const { beep, vibrate, unlockAudio, keepAwake } = window.JGCameraScanner;
   let installPrompt = null;
   let installOffered = false;
 
-  const escapeHtml = (value) => String(value ?? '')
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
   const setError = (message) => {
     errorNode.textContent = message;
@@ -69,48 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     resultDetail.textContent = detail;
     resultNode.classList.toggle('is-ok', tone === 'ok');
     resultNode.classList.toggle('is-error', tone === 'error');
-  };
-
-  // Feedback ------------------------------------------------------------------
-  const unlockAudio = () => {
-    const Context = window.AudioContext || window.webkitAudioContext;
-    if (!Context) return null;
-    if (!audioContext) audioContext = new Context();
-    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
-    return audioContext;
-  };
-
-  const beep = (frequencies, duration = 0.16) => {
-    const context = unlockAudio();
-    if (!context) return;
-    const now = context.currentTime;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.3, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    gain.connect(context.destination);
-    frequencies.forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = 'square';
-      oscillator.frequency.setValueAtTime(frequency, now + index * 0.05);
-      oscillator.connect(gain);
-      oscillator.start(now + index * 0.05);
-      oscillator.stop(now + duration + 0.02);
-    });
-  };
-
-  const vibrate = (pattern) => {
-    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_error) { /* Optional. */ }
-  };
-
-  const keepAwake = async () => {
-    if (!navigator.wakeLock?.request || wakeLock || document.visibilityState !== 'visible') return;
-    try {
-      wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => { wakeLock = null; });
-    } catch (_error) {
-      wakeLock = null;
-    }
   };
 
   // Server --------------------------------------------------------------------
@@ -143,95 +89,22 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraMsg.hidden = false;
   };
 
-  const stopCamera = () => {
-    window.clearTimeout(detectTimer);
-    detectTimer = 0;
-    if (zxingReader) {
-      try { zxingReader.reset(); } catch (_error) { /* Already stopped. */ }
-      zxingReader = null;
+  const camera = window.JGCameraScanner.create({
+    video,
+    onCode: (code) => {
+      if (!session) return;
+      cameraNode.classList.add('is-hit');
+      window.setTimeout(() => cameraNode.classList.remove('is-hit'), 250);
+      sendCode(code);
+    },
+    onState: (state, message) => {
+      if (state === 'opening') showCameraMessage('Opening camera…');
+      else if (state === 'on') { cameraMsg.hidden = true; permissionBox.hidden = true; }
+      else if (state === 'error') showCameraMessage(message, 'Try again');
     }
-    if (stream) stream.getTracks().forEach((track) => track.stop());
-    stream = null;
-    if (video) video.srcObject = null;
-  };
-
-  const loadScript = (src) => new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing && window.ZXing) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Unable to load the barcode reader. Check the phone connection.'));
-    document.head.appendChild(script);
   });
-
-  const nativeDetector = async () => {
-    if (!('BarcodeDetector' in window)) return null;
-    try {
-      const wanted = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code'];
-      const supported = await window.BarcodeDetector.getSupportedFormats();
-      const formats = wanted.filter((format) => supported.includes(format));
-      return formats.length ? new window.BarcodeDetector({ formats }) : null;
-    } catch (_error) {
-      return null;
-    }
-  };
-
-  const detectLoop = async () => {
-    detectTimer = 0;
-    if (!stream || !detector) return;
-    if (video.readyState >= 2) {
-      try {
-        const codes = await detector.detect(video);
-        if (codes.length) onBarcode(codes[0].rawValue);
-      } catch (_error) {
-        // Frame not ready; try the next one.
-      }
-    }
-    if (stream) detectTimer = window.setTimeout(detectLoop, 120);
-  };
-
-  const startCamera = async () => {
-    if (stream || cameraStarting || !session) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      showCameraMessage('This browser cannot open the camera. Use Chrome on Android or Safari on iPhone.');
-      return;
-    }
-    cameraStarting = true;
-    showCameraMessage('Opening camera…');
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      permissionBox.hidden = true;
-      if (!session) { stopCamera(); return; }
-      detector = detector || await nativeDetector();
-      if (detector) {
-        video.srcObject = stream;
-        await video.play().catch(() => {});
-        detectLoop();
-      } else {
-        await loadScript(zxingUrl);
-        zxingReader = new window.ZXing.BrowserMultiFormatReader();
-        zxingReader.decodeFromStream(stream, video, (result) => {
-          if (result) onBarcode(result.getText());
-        }).catch(() => {});
-      }
-      cameraMsg.hidden = true;
-      keepAwake();
-    } catch (error) {
-      stopCamera();
-      const denied = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
-      showCameraMessage(
-        denied ? 'Camera access is blocked. Allow the camera for this site in the browser settings, then tap below.' : (error?.message || 'Unable to open the camera.'),
-        'Try again'
-      );
-    } finally {
-      cameraStarting = false;
-    }
-  };
+  const stopCamera = () => camera.stop();
+  const startCamera = () => { if (session) camera.start(); };
 
   // Scanning ------------------------------------------------------------------
   // Same barcode -> SKU rule as the computer's scan page.
@@ -263,33 +136,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  const onBarcode = (raw) => {
-    const code = String(raw || '').trim();
-    if (!code || !session) return;
-    const now = Date.now();
-    // Cameras read the same label many times per second. One scan per item:
-    // the same code must leave the view for 0.9 s, any code needs 0.3 s.
-    if (code === lastCode && now - lastCodeAt < 900) { lastCodeAt = now; return; }
-    if (now - lastAnyAt < 300) return;
-    lastCode = code;
-    lastCodeAt = now;
-    lastAnyAt = now;
-    cameraNode.classList.add('is-hit');
-    window.setTimeout(() => cameraNode.classList.remove('is-hit'), 250);
-    beep([1040, 1560]);
-    vibrate(120);
-    sendCode(code);
-  };
-
   // Session state -------------------------------------------------------------
   const renderSummary = (summary) => {
     if (!summary) return;
     currentSummary = summary;
     progressNode.textContent = `${summary.scanned || 0}/${summary.required || 0}`;
-    itemsNode.innerHTML = (summary.items || []).map((item) => {
-      const done = item.required > 0 && item.scanned >= item.required;
-      return `<li class="${done ? 'is-done' : ''}"><span>${escapeHtml(item.name || item.code)}<small>${escapeHtml(item.code)}</small></span><b>${item.scanned}/${item.required}</b></li>`;
-    }).join('');
+    const previous = new Map((currentItems || []).map((item) => [item.code, Number(item.scanned || 0)]));
+    const items = summary.items || [];
+    const advanced = items.find((item) => previous.has(item.code) && Number(item.scanned || 0) > previous.get(item.code));
+    currentItems = items;
+    itemsNode.innerHTML = window.JGScanChecklist.render(items.map((item) => ({
+      key: item.code,
+      name: item.name || item.code,
+      code: item.code,
+      scanned: item.scanned,
+      required: item.required
+    })), { flashKey: advanced ? advanced.code : '' });
     const status = summary.status || {};
     // Only scan outcomes (accepted / problem) are shown; routine computer
     // status lines would just take up space.
@@ -324,7 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.session !== session) {
       session = state.session;
       lastStatusSeq = -1;
-      lastCode = '';
+      camera.forget();
+      currentItems = null;
       setResult('', '');
       vibrate(60);
     }
@@ -411,8 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
     sendCode(code);
   });
 
-  // Any tap unlocks sound on phones that block audio until the user interacts.
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

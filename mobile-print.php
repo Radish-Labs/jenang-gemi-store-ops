@@ -1,0 +1,236 @@
+<?php
+declare(strict_types=1);
+
+// Phone fulfillment prints on the packing computer. After the phone finishes
+// scanning, it queues a print job for its employee profile. The computer
+// signed in to the same profile with the phone scanner switched on (the
+// "print station") takes the job, opens the normal label page for it, and
+// reports progress back so the phone can show it. Claims, completion and
+// stock still go through the usual order actions on the computer.
+
+const JG_MOBILE_PRINT_STATION_STALE_SECONDS = 30;
+const JG_MOBILE_PRINT_JOB_TTL_SECONDS = 600;
+const JG_MOBILE_PRINT_STATUSES = ['queued', 'taken', 'printing', 'attention', 'confirm', 'printed', 'failed', 'cancelled', 'expired'];
+
+function jg_mobile_print_ensure_schema(PDO $pdo): void
+{
+    $isSqlite = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+    $idColumn = $isSqlite ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY';
+    $longText = $isSqlite ? 'TEXT' : 'MEDIUMTEXT';
+    $tableSuffix = $isSqlite ? '' : ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS store_ops_mobile_print_jobs_v1 (
+            id ' . $idColumn . ',
+            employee_id VARCHAR(64) NOT NULL,
+            order_id VARCHAR(128) NOT NULL,
+            source_platform VARCHAR(32) NOT NULL,
+            source_account VARCHAR(96) NOT NULL,
+            order_json ' . $longText . ' NOT NULL,
+            status VARCHAR(16) NOT NULL,
+            detail VARCHAR(255) NOT NULL DEFAULT \'\',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL' . ($isSqlite ? '' : ',
+            KEY idx_store_ops_mobile_print_jobs_queue (employee_id, status, id)') . '
+        )' . $tableSuffix
+    );
+    if ($isSqlite) {
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_store_ops_mobile_print_jobs_queue ON store_ops_mobile_print_jobs_v1 (employee_id, status, id)');
+    }
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS store_ops_mobile_print_stations_v1 (
+            employee_id VARCHAR(64) NOT NULL PRIMARY KEY,
+            seen_at INTEGER NOT NULL DEFAULT 0
+        )' . $tableSuffix
+    );
+}
+
+function jg_mobile_print_station_online(PDO $pdo, string $employeeId, int $now): bool
+{
+    $stmt = $pdo->prepare('SELECT seen_at FROM store_ops_mobile_print_stations_v1 WHERE employee_id = :employee_id LIMIT 1');
+    $stmt->execute([':employee_id' => $employeeId]);
+    return (int) $stmt->fetchColumn() >= $now - JG_MOBILE_PRINT_STATION_STALE_SECONDS;
+}
+
+function jg_mobile_print_station_seen(PDO $pdo, string $employeeId, int $now): void
+{
+    $stmt = $pdo->prepare('SELECT seen_at FROM store_ops_mobile_print_stations_v1 WHERE employee_id = :employee_id LIMIT 1');
+    $stmt->execute([':employee_id' => $employeeId]);
+    $seenAt = $stmt->fetchColumn();
+    if ($seenAt === false) {
+        try {
+            $pdo->prepare('INSERT INTO store_ops_mobile_print_stations_v1 (employee_id, seen_at) VALUES (:employee_id, :seen_at)')
+                ->execute([':employee_id' => $employeeId, ':seen_at' => $now]);
+        } catch (PDOException) {
+            // A parallel request created it first.
+        }
+        return;
+    }
+    if ((int) $seenAt < $now - JG_MOBILE_SCANNER_SEEN_WRITE_SECONDS) {
+        $pdo->prepare('UPDATE store_ops_mobile_print_stations_v1 SET seen_at = :seen_at WHERE employee_id = :employee_id')
+            ->execute([':seen_at' => $now, ':employee_id' => $employeeId]);
+    }
+}
+
+/**
+ * Phone: queue the scanned order for printing on the computer. Replaces any
+ * unfinished job for the same order so a retry never prints twice.
+ *
+ * @param array{source_platform:string,source_account:string,order_id:string} $key
+ */
+function jg_mobile_print_request(PDO $pdo, string $employeeId, array $order, array $key, int $now): array
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    $encoded = json_encode($order, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($encoded) || strlen($encoded) > 262144) {
+        throw new InvalidArgumentException('Order details are too large to print from the phone.');
+    }
+    $pdo->prepare(
+        'UPDATE store_ops_mobile_print_jobs_v1 SET status = \'cancelled\', updated_at = :updated_at
+         WHERE employee_id = :employee_id AND order_id = :order_id AND source_platform = :source_platform
+           AND source_account = :source_account AND status IN (\'queued\', \'taken\', \'printing\', \'attention\', \'confirm\', \'failed\')'
+    )->execute([
+        ':updated_at' => $now,
+        ':employee_id' => $employeeId,
+        ':order_id' => $key['order_id'],
+        ':source_platform' => $key['source_platform'],
+        ':source_account' => $key['source_account'],
+    ]);
+    $pdo->prepare('DELETE FROM store_ops_mobile_print_jobs_v1 WHERE created_at < :old')->execute([':old' => $now - 7 * 86400]);
+    $pdo->prepare(
+        'INSERT INTO store_ops_mobile_print_jobs_v1
+            (employee_id, order_id, source_platform, source_account, order_json, status, detail, created_at, updated_at)
+         VALUES (:employee_id, :order_id, :source_platform, :source_account, :order_json, \'queued\', \'\', :created_at, :updated_at)'
+    )->execute([
+        ':employee_id' => $employeeId,
+        ':order_id' => $key['order_id'],
+        ':source_platform' => $key['source_platform'],
+        ':source_account' => $key['source_account'],
+        ':order_json' => $encoded,
+        ':created_at' => $now,
+        ':updated_at' => $now,
+    ]);
+
+    return [
+        'job' => (int) $pdo->lastInsertId(),
+        'station_online' => jg_mobile_print_station_online($pdo, $employeeId, $now),
+    ];
+}
+
+function jg_mobile_print_job_row(PDO $pdo, string $employeeId, int $jobId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM store_ops_mobile_print_jobs_v1 WHERE id = :id AND employee_id = :employee_id LIMIT 1');
+    $stmt->execute([':id' => $jobId, ':employee_id' => $employeeId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) ? $row : null;
+}
+
+/**
+ * Phone: the job's progress as reported by the computer.
+ */
+function jg_mobile_print_job_state(PDO $pdo, string $employeeId, int $jobId, int $now): array
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    $row = jg_mobile_print_job_row($pdo, $employeeId, $jobId);
+    if ($row === null) {
+        return ['status' => 'missing', 'detail' => '', 'station_online' => false];
+    }
+    $status = (string) $row['status'];
+    if ($status === 'queued' && (int) $row['created_at'] < $now - JG_MOBILE_PRINT_JOB_TTL_SECONDS) {
+        $status = 'expired';
+    }
+    return [
+        'status' => $status,
+        'detail' => (string) $row['detail'],
+        'station_online' => jg_mobile_print_station_online($pdo, $employeeId, $now),
+    ];
+}
+
+/**
+ * Computer: the oldest waiting job for this profile, if any.
+ */
+function jg_mobile_print_next_job(PDO $pdo, string $employeeId, int $now): ?array
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    jg_mobile_print_station_seen($pdo, $employeeId, $now);
+    $stmt = $pdo->prepare(
+        'SELECT id, order_id FROM store_ops_mobile_print_jobs_v1
+         WHERE employee_id = :employee_id AND status = \'queued\' AND created_at >= :fresh
+         ORDER BY id ASC LIMIT 1'
+    );
+    $stmt->execute([':employee_id' => $employeeId, ':fresh' => $now - JG_MOBILE_PRINT_JOB_TTL_SECONDS]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) ? ['job' => (int) $row['id'], 'order_id' => (string) $row['order_id']] : null;
+}
+
+/**
+ * Computer: claim a waiting job. Only one computer tab can take it.
+ */
+function jg_mobile_print_take(PDO $pdo, string $employeeId, int $jobId, int $now): ?array
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    $stmt = $pdo->prepare(
+        'UPDATE store_ops_mobile_print_jobs_v1 SET status = \'taken\', detail = \'\', updated_at = :updated_at
+         WHERE id = :id AND employee_id = :employee_id AND status = \'queued\''
+    );
+    $stmt->execute([':updated_at' => $now, ':id' => $jobId, ':employee_id' => $employeeId]);
+    if ($stmt->rowCount() !== 1) {
+        return null;
+    }
+    $row = jg_mobile_print_job_row($pdo, $employeeId, $jobId);
+    $order = json_decode((string) ($row['order_json'] ?? ''), true);
+    if (!is_array($order)) {
+        jg_mobile_print_set_status($pdo, $employeeId, $jobId, 'failed', 'Order details were unreadable. Start the order again.', $now);
+        return null;
+    }
+    return [
+        'job' => $jobId,
+        'order' => $order,
+        'key' => [
+            'order_id' => (string) $row['order_id'],
+            'source_platform' => (string) $row['source_platform'],
+            'source_account' => (string) $row['source_account'],
+        ],
+    ];
+}
+
+/**
+ * Computer: report progress (printing, printer problem, waiting for the
+ * operator to confirm, printed, failed).
+ */
+function jg_mobile_print_set_status(PDO $pdo, string $employeeId, int $jobId, string $status, string $detail, int $now): bool
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    if (!in_array($status, ['printing', 'attention', 'confirm', 'printed', 'failed'], true)) {
+        throw new InvalidArgumentException('Unknown print status.');
+    }
+    $stmt = $pdo->prepare(
+        'UPDATE store_ops_mobile_print_jobs_v1 SET status = :status, detail = :detail, updated_at = :updated_at
+         WHERE id = :id AND employee_id = :employee_id AND status IN (\'taken\', \'printing\', \'attention\', \'confirm\', \'failed\')'
+    );
+    $stmt->execute([
+        ':status' => $status,
+        ':detail' => mb_substr(trim($detail), 0, 250),
+        ':updated_at' => $now,
+        ':id' => $jobId,
+        ':employee_id' => $employeeId,
+    ]);
+    return $stmt->rowCount() === 1;
+}
+
+function jg_mobile_print_station_wait(PDO $pdo, string $employeeId, float $waitSeconds): array
+{
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $employeeId): array {
+        $job = jg_mobile_print_next_job($pdo, $employeeId, $now);
+        return [$job !== null, ['job' => $job]];
+    }, $waitSeconds);
+}
+
+function jg_mobile_print_job_wait(PDO $pdo, string $employeeId, int $jobId, string $known, float $waitSeconds): array
+{
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $employeeId, $jobId, $known): array {
+        $state = jg_mobile_print_job_state($pdo, $employeeId, $jobId, $now);
+        $state['signature'] = implode('|', [$state['status'], $state['detail'], $state['station_online'] ? '1' : '0']);
+        return [$state['signature'] !== $known, $state];
+    }, $waitSeconds);
+}

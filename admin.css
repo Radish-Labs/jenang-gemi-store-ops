@@ -13038,3 +13038,229 @@ button.admin-store-sidebar-profile:hover {
 @media (max-width: 640px) {
   .admin-mobile-scanner-card { grid-template-columns: 1fr; }
 }
+
+/* Phone camera on the scan page */
+.admin-phone-camera {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  max-height: 46vh;
+  margin: 12px 0;
+  border-radius: 16px;
+  border: 3px solid transparent;
+  background: #000000;
+  transition: border-color 0.15s;
+}
+.admin-phone-camera[hidden] { display: none; }
+.admin-phone-camera.is-hit { border-color: var(--admin-success); }
+.admin-phone-camera video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.admin-phone-camera::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 50%;
+  height: 2px;
+  background: rgba(248, 113, 113, 0.85);
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.9);
+}
+.admin-phone-camera-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.72);
+  font-size: 14px;
+}
+.admin-phone-camera-msg[hidden] { display: none; }
+
+/* Phone: label prints on the computer */
+.admin-remote-print {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 16px;
+  margin-top: 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-soft);
+  text-align: center;
+}
+.admin-remote-print[hidden] { display: none; }
+.admin-remote-print strong { font-size: 18px; }
+.admin-remote-print p { margin: 0; color: var(--admin-muted); line-height: 1.45; max-width: 36ch; }
+.admin-remote-print-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 22px;
+  background: var(--admin-surface);
+  border: 2px solid var(--admin-info);
+  animation: admin-remote-print-pulse 1.4s ease-in-out infinite;
+}
+.admin-remote-print[data-tone='ok'] .admin-remote-print-icon { border-color: var(--admin-success); color: var(--admin-success); animation: none; }
+.admin-remote-print[data-tone='error'] .admin-remote-print-icon { border-color: var(--admin-danger); color: var(--admin-danger); animation: none; }
+.admin-remote-print[data-tone='ok'] strong { color: var(--admin-success); }
+.admin-remote-print[data-tone='error'] strong { color: var(--admin-danger); }
+.admin-remote-print-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.admin-remote-print-actions [hidden] { display: none; }
+@keyframes admin-remote-print-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* Computer: print panel for phone orders */
+.admin-print-station {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+.admin-print-station[hidden] { display: none; }
+.admin-print-station-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(980px, 100%);
+  height: min(860px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 20px;
+  background: var(--admin-surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.admin-print-station-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--admin-border);
+}
+.admin-print-station-card h3 { margin: 2px 0 0; font-family: 'Space Grotesk', sans-serif; }
+.admin-print-station-card iframe { width: 100%; height: 100%; border: 0; background: var(--admin-bg); }
+
+/* ---------- Phones (Store Ops app): board, pick list, scan and label pages ---------- */
+@media (max-width: 600px) {
+  /* Topbar: menu, a swipeable row of labelled stats, drop-off switch, avatar. */
+  /* Row 1: menu, drop-off switch, avatar. Row 2: all five stats. */
+  .admin-store-home .admin-store-topbar {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-areas: "menu . actions" "stats stats stats";
+    gap: 6px;
+    min-height: 0;
+    padding: 6px;
+  }
+  .admin-store-home .admin-store-topbar .admin-store-mobile-menu { grid-area: menu; }
+  .admin-store-home .admin-store-topbar .admin-topbar-actions { grid-area: actions; }
+  .admin-store-home .admin-store-command {
+    grid-area: stats;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .admin-store-home .admin-store-command .admin-store-stat {
+    display: grid;
+    justify-items: center;
+    gap: 0;
+    min-width: 0;
+    padding: 4px 2px;
+  }
+  .admin-store-home .admin-store-command .admin-store-stat span {
+    display: block;
+    font-size: 8.5px;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .admin-store-home .admin-store-command .admin-store-stat strong { font-size: 15px; line-height: 1.15; }
+  .admin-store-home .admin-store-topbar .admin-store-profile-copy { display: none; }
+  .admin-store-home .admin-store-topbar .admin-store-header-profile { padding: 3px; gap: 0; }
+  .admin-store-home .admin-store-topbar .admin-topbar-actions { gap: 6px; }
+  .admin-store-home .admin-store-topbar .admin-dropoff-filter-label { display: none; }
+
+  /* The page scrolls, not a short box inside it. */
+  .is-store-home .admin-store-home .admin-order-board-wrap,
+  .admin-store-home .admin-order-board-wrap {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .admin-store-home .admin-order-board { height: auto; }
+
+  /* Pop-ups: centred, full width, Lanjut always reachable. */
+  .admin-store-home .admin-modal-shell { padding: 8px; }
+  .admin-store-home .admin-modal-card {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    height: auto;
+    min-height: 0;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    padding: 18px 16px;
+  }
+  .admin-fulfillment-card .admin-modal-head { gap: 10px; }
+  .admin-fulfillment-card .admin-modal-actions {
+    position: sticky;
+    bottom: -18px;
+    margin: 12px -16px -18px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--admin-surface);
+    border-top: 1px solid var(--admin-border);
+  }
+  .admin-fulfillment-card .admin-next-btn { width: 100%; min-height: 52px; }
+  .admin-pick-item { padding: 10px 12px; gap: 10px; }
+  .admin-pick-item strong,
+  .admin-preview-product strong {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 15px;
+  }
+  .admin-pick-item span { font-size: 12px; }
+  .admin-preview-products,
+  .admin-preview-product-list { height: auto; max-height: none; overflow: visible; }
+
+  /* Scan and label pages: use the whole width. */
+  .admin-scan-page-layout,
+  .admin-print-page-layout { padding: 0; }
+  .admin-scan-page-card,
+  .admin-print-page-card { padding: 12px; border-radius: 16px; }
+  .admin-scan-page-card .admin-scan-head h3,
+  .admin-print-page-card .admin-scan-head h3 { font-size: 18px; }
+  body.is-phone-scan .admin-scanner-status-card { padding: 8px 12px; }
+  /* Phone scan page: one line for the order and progress, then the camera. */
+  body.is-phone-scan .admin-scan-head .admin-panel-kicker,
+  body.is-phone-scan .admin-scan-head h3 { display: none; }
+  body.is-phone-scan .admin-scan-page-card { display: grid; align-content: start; gap: 8px; }
+  body.is-phone-scan .admin-scan-page-card > * { margin-top: 0; margin-bottom: 0; }
+  body.is-phone-scan .admin-scan-head > div { text-align: left; }
+  body.is-phone-scan .admin-scan-head {
+    display: flex;
+    flex-direction: row;
+    text-align: left;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0;
+  }
+  body.is-phone-scan .admin-scan-head .admin-panel-meta { margin: 0; font-size: 13px; }
+  body.is-phone-scan .admin-scan-head .admin-status-badge { margin: 0; font-size: 15px; }
+  body.is-phone-scan .admin-phone-camera { margin: 8px 0; }
+  body.is-phone-scan .admin-sync-status { padding: 4px 10px; font-size: 11px; min-height: 0; }
+  body.is-phone-scan .admin-scan-list { margin-top: 8px; }
+}

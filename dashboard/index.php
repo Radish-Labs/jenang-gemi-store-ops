@@ -33,6 +33,10 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
     <link rel="stylesheet" href="../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
+    <link rel="manifest" href="../mobile-scanner/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="../mobile-scanner/icons/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Store Ops">
 </head>
 <body class="admin-body is-dashboard is-store-home">
     <div class="admin-build-badge" aria-label="Store build version">Build <?php echo htmlspecialchars(JG_STORE_OPS_BUILD, ENT_QUOTES, 'UTF-8'); ?></div>
@@ -542,5 +546,6 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
         </div>
     </div>
     <script src="../store-home.js?v=<?php echo urlencode($storeHomeJsVersion ?: '1'); ?>" defer></script>
+    <script src="../phone-app.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/phone-app.js')); ?>" defer></script>
 </body>
 </html>

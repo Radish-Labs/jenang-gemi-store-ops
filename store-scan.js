@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mobileScannerRow = document.querySelector('[data-mobile-scanner-row]');
   const mobileScannerUseUsb = document.querySelector('[data-mobile-scanner-use-usb]');
   const scannerModeKey = 'jg-store-scanner-mode';
+  // On a phone, scan with its own camera (the label then prints on the computer).
+  const isPhoneDevice = Boolean(window.JGStoreDevice?.isPhone());
   const phoneModeOn = () => {
     try { return window.localStorage.getItem(scannerModeKey) === 'phone'; } catch (_error) { return false; }
   };
@@ -86,6 +88,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let serverSerialTimer = 0;
   let serverSerialErrorShown = false;
   let lastScanKey = '';
+  let lastAcceptedSku = '';
+  let lastAcceptedAt = 0;
   let lastScanAt = 0;
   let pendingScanEvents = [];
   let activeFlushBatch = [];
@@ -546,29 +550,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const required = totalRequired();
     if (scanProgress) scanProgress.textContent = `${scanned}/${required}`;
     if (scanList) {
-      scanList.innerHTML = scanItems().map((item) => {
+      const rows = scanItems().map((item) => {
         const scanSku = scanSkuFor(item);
         const required = scanQuantityFor(item);
         const skipped = skipQuantityFor(item);
         const manualRequired = manualQuantityFor(item);
-        const count = skipped + Math.min(scanCountFor(scanSku), manualRequired, required);
-        const complete = count >= required;
-        const soldOut = soldOutByScanSku.get(scanSku);
         const sourceSkus = sourceSkusFor(item).filter((sku) => sku && sku !== scanSku);
-        const codeLabel = sourceSkus.length === 1
-          ? `Order ${sourceSkus[0]} -> scan ${scanSku}`
-          : `${scanSku} / ${item.scanBarcode || item.barcode}`;
-        return `
-          <article class="admin-scan-item ${complete ? 'is-complete' : ''} ${soldOut ? 'is-sold-out' : ''}">
-            <div>
-              <strong>${escapeHtml(item.scanProductName || item.productName)}</strong>
-              <span>${escapeHtml(skipped > 0 ? `${codeLabel} / Skip Scan` : codeLabel)}</span>
-              ${soldOut ? '<span class="admin-scan-item-stock-warning"><b>SOLD OUT</b> Stock is 0 · Update PO amount received</span>' : ''}
-            </div>
-            <em>${count}/${escapeHtml(required)}</em>
-          </article>
-        `;
-      }).join('');
+        return {
+          key: scanSku,
+          name: String(item.scanProductName || item.productName || scanSku),
+          code: sourceSkus.length === 1 ? `Order ${sourceSkus[0]} → scan ${scanSku}` : `${scanSku} / ${item.scanBarcode || item.barcode}`,
+          scanned: skipped + Math.min(scanCountFor(scanSku), manualRequired, required),
+          required,
+          skipped: skipped > 0,
+          soldOut: Boolean(soldOutByScanSku.get(scanSku))
+        };
+      });
+      const flashKey = Date.now() - lastAcceptedAt < 800 ? lastAcceptedSku : '';
+      scanList.innerHTML = window.JGScanChecklist
+        ? window.JGScanChecklist.render(rows, { flashKey })
+        : rows.map((row) => `<p>${escapeHtml(row.name)} · ${escapeHtml(row.code)} ${row.scanned}/${row.required}</p>`).join('');
     }
 
     if (required > 0 && scanned >= required) {
@@ -661,6 +662,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     scans.set(matchSku, current + 1);
+    lastAcceptedSku = matchSku;
+    lastAcceptedAt = Date.now();
     setError('');
     queueScanEvent({
       type: 'scan',
@@ -950,7 +953,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const startMobileScanner = async () => {
-    if (!order || !phoneModeOn()) return;
+    if (!order || !phoneModeOn() || isPhoneDevice) return;
     try {
       const summary = mobileSummary();
       const payload = await postMobileScanner({ action: 'start', order_id: String(order.id || orderId || ''), summary });
@@ -984,6 +987,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     setScanStatus('Ready to scan', 'Using the USB scanner. Turn the phone back on in Settings.');
   });
 
+  const startPhoneCamera = () => {
+    const box = document.querySelector('[data-phone-camera]');
+    const video = document.querySelector('[data-phone-camera-video]');
+    const msg = document.querySelector('[data-phone-camera-msg]');
+    const text = document.querySelector('[data-phone-camera-text]');
+    const retry = document.querySelector('[data-phone-camera-retry]');
+    if (!order || !box || !video || !window.JGCameraScanner) return;
+    box.hidden = false;
+    document.body.classList.add('is-phone-scan');
+    const camera = window.JGCameraScanner.create({
+      video,
+      onCode: (code) => {
+        box.classList.add('is-hit');
+        window.setTimeout(() => box.classList.remove('is-hit'), 250);
+        if (!handleScan(code, { fromPhone: true })) {
+          window.JGCameraScanner.beep([330, 220], 0.32);
+          window.JGCameraScanner.vibrate([200, 80, 200, 80, 200]);
+        }
+      },
+      onState: (state, message) => {
+        if (state === 'opening') { text.textContent = 'Opening camera…'; retry.hidden = true; msg.hidden = false; }
+        else if (state === 'on') msg.hidden = true;
+        else if (state === 'error') { text.textContent = message || 'Unable to open the camera.'; retry.hidden = false; msg.hidden = false; }
+      }
+    });
+    retry?.addEventListener('click', () => camera.start());
+    camera.start();
+    document.addEventListener('visibilitychange', () => {
+      if (printRedirecting) return;
+      if (document.visibilityState === 'visible') camera.start();
+      else camera.stop();
+    });
+    window.addEventListener('pagehide', () => camera.stop());
+  };
+
   const initialize = async () => {
     applyStockRows(readCachedStockRows());
     refreshStockInBackground();
@@ -1003,6 +1041,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
     updateSyncStatus();
     startMobileScanner();
+    if (isPhoneDevice) {
+      startPhoneCamera();
+      setScanStatus('Ready to scan', 'Point the camera at each product barcode.');
+      if (pendingScanEvents.length || (scanCompletionQueued && !scanCompletedOnServer)) scheduleScanFlush();
+      return;
+    }
     if (pendingScanEvents.length || (scanCompletionQueued && !scanCompletedOnServer)) {
       scheduleScanFlush();
     }

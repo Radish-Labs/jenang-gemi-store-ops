@@ -25,6 +25,7 @@ $storeScanJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/store-scan.js'
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
     <link rel="stylesheet" href="../../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
+    <link rel="stylesheet" href="../../scan-checklist.css?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/scan-checklist.css')); ?>">
 </head>
 <body class="admin-body is-dashboard is-store-home">
     <?php
@@ -52,6 +53,13 @@ $storeScanJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/store-scan.js'
                     </div>
                     <span class="admin-status-badge" data-scan-progress>0/0</span>
                 </div>
+                <div class="admin-phone-camera" data-phone-camera hidden>
+                    <video data-phone-camera-video muted playsinline autoplay></video>
+                    <div class="admin-phone-camera-msg" data-phone-camera-msg hidden>
+                        <span data-phone-camera-text>Opening camera…</span>
+                        <button type="button" class="admin-primary-btn" data-phone-camera-retry hidden>Try again</button>
+                    </div>
+                </div>
                 <div class="admin-scanner-status-card">
                     <div data-scan-status>
                         <strong>Ready to scan</strong>
@@ -77,6 +85,9 @@ $storeScanJsVersion = (string) @filemtime(dirname(__DIR__, 2) . '/store-scan.js'
             </section>
         </main>
     <?php jg_store_ops_shell_close(); ?>
+    <script src="../../scan-checklist.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/scan-checklist.js')); ?>" defer></script>
+    <script src="../../camera-scanner.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/camera-scanner.js')); ?>" defer></script>
+    <script src="../../store-device.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/store-device.js')); ?>" defer></script>
     <script src="../../scan-handoff.js?v=<?php echo urlencode((string) filemtime(dirname(__DIR__, 2) . '/scan-handoff.js')); ?>" defer></script>
     <script src="../../store-shell.js?v=<?php echo urlencode($storeShellJsVersion ?: '1'); ?>" defer></script>
     <script src="../../store-scan.js?v=<?php echo urlencode($storeScanJsVersion ?: '1'); ?>" defer></script>

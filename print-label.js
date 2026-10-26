@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const doneNode = document.querySelector('[data-print-done]');
   const printAgainButton = document.querySelector('[data-print-again]');
   const browserPrintButton = document.querySelector('[data-print-browser-fallback]');
+  const remotePanel = document.querySelector('[data-remote-print]');
 
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -101,6 +102,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   let helperJobId = '';
   let completionAcknowledged = false;
   let closeTimer = 0;
+
+  // Station mode: this page runs inside the computer's print panel for an
+  // order the phone scanned. It prints on its own and reports to the panel.
+  const stationMode = params.get('station') === '1' && window.parent !== window;
+  // Phone mode: phones have no printer, so the label prints on the computer.
+  const remotePrint = !stationMode && !isReprint && Boolean(window.JGStoreDevice?.isPhone());
+  const postToStation = (message) => {
+    if (!stationMode) return;
+    try {
+      window.parent.postMessage({ source: 'jg-print-station', orderId: order?.id || orderId, ...message }, window.location.origin);
+    } catch (_error) {
+      // The panel falls back to its own timeout.
+    }
+  };
 
   // Marketplace labels arrive at label size. Direct, website and partner
   // labels are courier PDFs uploaded at whatever page size the courier uses,
@@ -312,6 +327,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const leavePrintTab = () => {
+    if (stationMode) {
+      postToStation({ type: 'done' });
+      return;
+    }
+    if (remotePrint) {
+      window.location.href = '../';
+      return;
+    }
     try {
       if (window.opener && !window.opener.closed) window.opener.focus();
     } catch (_error) {
@@ -589,6 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       helperAvailable = false;
       if (statusNode) statusNode.textContent = 'Print helper not running';
       setError('The Store Ops print helper is not responding on this computer. Press Print to use the browser print dialog.');
+      if (stationMode) printLabel();
       return;
     }
     if (outcome.state === 'unknown') {
@@ -634,6 +658,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     printThroughHelper();
+  };
+
+  // In the computer's print panel there is nobody to press Print, so print
+  // straight away: through the helper when it runs, else the browser dialog.
+  const startStationOrHelperPrint = async () => {
+    await startHelperMode();
+    if (stationMode && !helperAvailable && !printInProgress) printLabel();
   };
 
   const platformLabel = (value) => {
@@ -697,14 +728,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         labelLoaded = true;
         setPrintEnabled(true);
         if (statusNode) statusNode.textContent = 'Ready';
-        startHelperMode();
+        startStationOrHelperPrint();
       }, { once: true });
       labelFrame.src = labelUrl;
     } else {
       labelLoaded = true;
       setPrintEnabled(true);
       if (statusNode) statusNode.textContent = 'Ready';
-      startHelperMode();
+      startStationOrHelperPrint();
     }
     if (previewNode) previewNode.hidden = false;
   };
@@ -714,8 +745,117 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusNode) statusNode.textContent = 'Order missing';
     setError('Order ID is required.');
   }
+  if (stationMode) {
+    const report = () => {
+      const status = String(statusNode?.textContent || '').trim();
+      const error = String(errorNode && !errorNode.hidden ? errorNode.textContent : '').trim();
+      const confirm = Boolean(confirmationNode && !confirmationNode.hidden && !(confirmPrintedButton instanceof HTMLButtonElement && confirmPrintedButton.disabled));
+      postToStation({ type: 'status', status, error, confirm });
+    };
+    const observer = new MutationObserver(report);
+    [statusNode, errorNode, confirmationNode, confirmPrintedButton].forEach((node) => {
+      if (node) observer.observe(node, { attributes: true, childList: true, characterData: true, subtree: true });
+    });
+    report();
+  }
+
+  const runRemotePrint = () => {
+    const endpoint = '../../api/mobile-scanner/';
+    const title = remotePanel?.querySelector('[data-remote-print-title]');
+    const detail = remotePanel?.querySelector('[data-remote-print-detail]');
+    const icon = remotePanel?.querySelector('[data-remote-print-icon]');
+    const retry = remotePanel?.querySelector('[data-remote-print-retry]');
+    root.querySelectorAll('.admin-label-option-grid, .admin-label-preview, .admin-label-print-confirmation, .admin-label-print-done, .admin-label-browser-print')
+      .forEach((node) => { node.hidden = true; node.style.display = 'none'; });
+    if (remotePanel) remotePanel.hidden = false;
+    let job = 0;
+    let known = '';
+    let run = 0;
+    const show = (heading, text, tone = 'info', canRetry = false) => {
+      if (title) title.textContent = heading;
+      if (detail) detail.textContent = text;
+      if (remotePanel) remotePanel.dataset.tone = tone;
+      if (icon) icon.textContent = tone === 'ok' ? '✓' : (tone === 'error' ? '!' : '');
+      if (retry) retry.hidden = !canRetry;
+      if (statusNode) statusNode.textContent = heading;
+    };
+    const render = (state) => {
+      const pcOffline = !state.station_online;
+      switch (state.status) {
+        case 'queued':
+          show(pcOffline ? 'No computer is ready' : 'Sent to the computer',
+            pcOffline
+              ? 'Open Store Ops on the packing computer, signed in with this profile and with Settings > Use mobile scanner on. It prints as soon as it connects.'
+              : 'Waiting for the computer to start printing…', pcOffline ? 'error' : 'info');
+          return false;
+        case 'taken':
+        case 'printing':
+          show('Printing on the computer…', state.detail || 'The label is being printed.');
+          return false;
+        case 'attention':
+          show('Printer needs attention', state.detail || 'Check the printer at the computer.', 'error');
+          return false;
+        case 'confirm':
+          show('Confirm at the computer', 'Check the label, then press Printed successfully on the computer.');
+          return false;
+        case 'printed':
+          show('Printed', 'Order complete. Back to the orders…', 'ok');
+          markPrinted(new Date().toISOString());
+          window.setTimeout(() => { window.location.href = '../'; }, 1800);
+          return true;
+        case 'failed':
+          // The computer may still fix the printer and retry, so keep watching.
+          show('Not printed', state.detail || 'The computer could not print this label.', 'error', true);
+          return false;
+        default:
+          show('Not printed', 'The print request expired. Send it again.', 'error', true);
+          return true;
+      }
+    };
+    const watch = async (thisRun) => {
+      while (thisRun === run) {
+        try {
+          const query = new URLSearchParams({ action: 'print_job', job: String(job), known, wait: '10' });
+          const response = await fetch(`${endpoint}?${query}`, { cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+          const state = await response.json();
+          if (!response.ok || state.ok === false) throw new Error(state.error || 'Connection lost.');
+          if (thisRun !== run) return;
+          known = String(state.signature || '');
+          if (render(state)) return;
+        } catch (_error) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        }
+      }
+    };
+    const send = async () => {
+      run += 1;
+      const thisRun = run;
+      known = '';
+      show('Sending to the computer…', 'The label prints on the packing computer.');
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ action: 'print_request', order })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to reach Store Ops.');
+        job = Number(payload.job || 0);
+        render({ status: 'queued', station_online: Boolean(payload.station_online) });
+        watch(thisRun);
+      } catch (error) {
+        show('Not sent', error instanceof Error ? error.message : 'Unable to reach Store Ops.', 'error', true);
+      }
+    };
+    retry?.addEventListener('click', send);
+    send();
+  };
+
   renderOptions();
-  if (order) {
+  if (order && remotePrint) {
+    runRemotePrint();
+  } else if (order) {
     (async () => {
       await loadLabel();
     })().catch((error) => {
