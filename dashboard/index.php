@@ -75,13 +75,14 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
             </nav>
 
             <div class="admin-store-sidebar-tools">
+                <button type="button" class="admin-store-nav-item admin-store-app-promo" data-open-phone-app title="New: get the phone app">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
+                    <span class="admin-store-app-promo-copy"><strong>New: Phone app</strong><small>Orders on your phone</small></span>
+                    <i class="admin-store-app-promo-dot" aria-hidden="true"></i>
+                </button>
                 <button type="button" class="admin-store-nav-item" data-open-reprint title="Reprint label">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>
                     <span>Reprint</span>
-                </button>
-                <button type="button" class="admin-store-nav-item" data-open-phone-app title="Get the phone app">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
-                    <span>Phone app</span>
                 </button>
                 <script src="../phone-app-install.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/phone-app-install.js')); ?>" defer></script>
             </div>

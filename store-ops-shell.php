@@ -135,14 +135,15 @@ function jg_store_ops_shell_open(array $options = []): void
             </nav>
 
             <div class="admin-store-sidebar-tools">
+                <button type="button" class="admin-store-nav-item admin-store-app-promo" data-open-phone-app title="New: get the phone app">
+                    <?php echo jg_store_ops_shell_svg('phone-app'); ?>
+                    <span class="admin-store-app-promo-copy"><strong>New: Phone app</strong><small>Orders on your phone</small></span>
+                    <i class="admin-store-app-promo-dot" aria-hidden="true"></i>
+                </button>
                 <a class="admin-store-nav-item" href="<?php echo htmlspecialchars($rootPrefix . 'dashboard/print-label/', ENT_QUOTES, 'UTF-8'); ?>" title="Reprint label">
                     <?php echo jg_store_ops_shell_svg('reprint'); ?>
                     <span>Reprint</span>
                 </a>
-                <button type="button" class="admin-store-nav-item" data-open-phone-app title="Get the phone app">
-                    <?php echo jg_store_ops_shell_svg('phone-app'); ?>
-                    <span>Phone app</span>
-                </button>
                 <script src="<?php echo htmlspecialchars($rootPrefix . 'phone-app-install.js?v=' . urlencode((string) @filemtime(__DIR__ . '/phone-app-install.js')), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
             </div>
 
