@@ -2,11 +2,11 @@
 declare(strict_types=1);
 
 // Phone fulfillment prints on the packing computer. After the phone finishes
-// scanning, it queues a print job for its employee profile. The computer
-// signed in to the same profile with the phone scanner switched on (the
-// "print station") takes the job, opens the normal label page for it, and
-// reports progress back so the phone can show it. Claims, completion and
-// stock still go through the usual order actions on the computer.
+// scanning, it queues a print job under its employee profile. Any packing
+// computer (the "print station"), whatever profile it is signed in to, takes
+// the next job from any profile, opens the normal label page for it, and
+// reports progress back so the phone can show it. Completion and stock go
+// through the usual order actions, recorded under the phone's profile.
 
 const JG_MOBILE_PRINT_STATION_STALE_SECONDS = 30;
 const JG_MOBILE_PRINT_JOB_TTL_SECONDS = 600;
@@ -45,15 +45,18 @@ function jg_mobile_print_ensure_schema(PDO $pdo): void
     );
 }
 
-function jg_mobile_print_station_online(PDO $pdo, string $employeeId, int $now): bool
+// Stations are tracked per signed-in profile (several computers may be open),
+// but a phone only needs to know that some station is listening.
+function jg_mobile_print_station_online(PDO $pdo, int $now): bool
 {
-    $stmt = $pdo->prepare('SELECT seen_at FROM store_ops_mobile_print_stations_v1 WHERE employee_id = :employee_id LIMIT 1');
-    $stmt->execute([':employee_id' => $employeeId]);
+    $stmt = $pdo->prepare('SELECT MAX(seen_at) FROM store_ops_mobile_print_stations_v1');
+    $stmt->execute();
     return (int) $stmt->fetchColumn() >= $now - JG_MOBILE_PRINT_STATION_STALE_SECONDS;
 }
 
 function jg_mobile_print_station_seen(PDO $pdo, string $employeeId, int $now): void
 {
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
     $stmt = $pdo->prepare('SELECT seen_at FROM store_ops_mobile_print_stations_v1 WHERE employee_id = :employee_id LIMIT 1');
     $stmt->execute([':employee_id' => $employeeId]);
     $seenAt = $stmt->fetchColumn();
@@ -113,7 +116,7 @@ function jg_mobile_print_request(PDO $pdo, string $employeeId, array $order, arr
 
     return [
         'job' => (int) $pdo->lastInsertId(),
-        'station_online' => jg_mobile_print_station_online($pdo, $employeeId, $now),
+        'station_online' => jg_mobile_print_station_online($pdo, $now),
     ];
 }
 
@@ -142,49 +145,51 @@ function jg_mobile_print_job_state(PDO $pdo, string $employeeId, int $jobId, int
     return [
         'status' => $status,
         'detail' => (string) $row['detail'],
-        'station_online' => jg_mobile_print_station_online($pdo, $employeeId, $now),
+        'station_online' => jg_mobile_print_station_online($pdo, $now),
     ];
 }
 
 /**
- * Computer: the oldest waiting job for this profile, if any.
+ * Computer: the oldest waiting job from any profile, if any.
  */
-function jg_mobile_print_next_job(PDO $pdo, string $employeeId, int $now): ?array
+function jg_mobile_print_next_job(PDO $pdo, string $stationEmployeeId, int $now): ?array
 {
-    $employeeId = jg_mobile_scanner_require_employee($employeeId);
-    jg_mobile_print_station_seen($pdo, $employeeId, $now);
+    jg_mobile_print_station_seen($pdo, $stationEmployeeId, $now);
     $stmt = $pdo->prepare(
         'SELECT id, order_id FROM store_ops_mobile_print_jobs_v1
-         WHERE employee_id = :employee_id AND status = \'queued\' AND created_at >= :fresh
+         WHERE status = \'queued\' AND created_at >= :fresh
          ORDER BY id ASC LIMIT 1'
     );
-    $stmt->execute([':employee_id' => $employeeId, ':fresh' => $now - JG_MOBILE_PRINT_JOB_TTL_SECONDS]);
+    $stmt->execute([':fresh' => $now - JG_MOBILE_PRINT_JOB_TTL_SECONDS]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return is_array($row) ? ['job' => (int) $row['id'], 'order_id' => (string) $row['order_id']] : null;
 }
 
 /**
- * Computer: claim a waiting job. Only one computer tab can take it.
+ * Computer: claim a waiting job from any profile. Only one computer tab can
+ * take it. Returns the phone's profile, which the order is completed as.
  */
-function jg_mobile_print_take(PDO $pdo, string $employeeId, int $jobId, int $now): ?array
+function jg_mobile_print_take(PDO $pdo, int $jobId, int $now): ?array
 {
-    $employeeId = jg_mobile_scanner_require_employee($employeeId);
     $stmt = $pdo->prepare(
         'UPDATE store_ops_mobile_print_jobs_v1 SET status = \'taken\', detail = \'\', updated_at = :updated_at
-         WHERE id = :id AND employee_id = :employee_id AND status = \'queued\''
+         WHERE id = :id AND status = \'queued\''
     );
-    $stmt->execute([':updated_at' => $now, ':id' => $jobId, ':employee_id' => $employeeId]);
+    $stmt->execute([':updated_at' => $now, ':id' => $jobId]);
     if ($stmt->rowCount() !== 1) {
         return null;
     }
-    $row = jg_mobile_print_job_row($pdo, $employeeId, $jobId);
-    $order = json_decode((string) ($row['order_json'] ?? ''), true);
+    $stmt = $pdo->prepare('SELECT * FROM store_ops_mobile_print_jobs_v1 WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $jobId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $order = is_array($row) ? json_decode((string) ($row['order_json'] ?? ''), true) : null;
     if (!is_array($order)) {
-        jg_mobile_print_set_status($pdo, $employeeId, $jobId, 'failed', 'Order details were unreadable. Start the order again.', $now);
+        jg_mobile_print_set_status($pdo, $jobId, 'failed', 'Order details were unreadable. Start the order again.', $now);
         return null;
     }
     return [
         'job' => $jobId,
+        'employee_id' => (string) $row['employee_id'],
         'order' => $order,
         'key' => [
             'order_id' => (string) $row['order_id'],
@@ -198,30 +203,28 @@ function jg_mobile_print_take(PDO $pdo, string $employeeId, int $jobId, int $now
  * Computer: report progress (printing, printer problem, waiting for the
  * operator to confirm, printed, failed).
  */
-function jg_mobile_print_set_status(PDO $pdo, string $employeeId, int $jobId, string $status, string $detail, int $now): bool
+function jg_mobile_print_set_status(PDO $pdo, int $jobId, string $status, string $detail, int $now): bool
 {
-    $employeeId = jg_mobile_scanner_require_employee($employeeId);
     if (!in_array($status, ['printing', 'attention', 'confirm', 'printed', 'failed'], true)) {
         throw new InvalidArgumentException('Unknown print status.');
     }
     $stmt = $pdo->prepare(
         'UPDATE store_ops_mobile_print_jobs_v1 SET status = :status, detail = :detail, updated_at = :updated_at
-         WHERE id = :id AND employee_id = :employee_id AND status IN (\'taken\', \'printing\', \'attention\', \'confirm\', \'failed\')'
+         WHERE id = :id AND status IN (\'taken\', \'printing\', \'attention\', \'confirm\', \'failed\')'
     );
     $stmt->execute([
         ':status' => $status,
         ':detail' => mb_substr(trim($detail), 0, 250),
         ':updated_at' => $now,
         ':id' => $jobId,
-        ':employee_id' => $employeeId,
     ]);
     return $stmt->rowCount() === 1;
 }
 
-function jg_mobile_print_station_wait(PDO $pdo, string $employeeId, float $waitSeconds): array
+function jg_mobile_print_station_wait(PDO $pdo, string $stationEmployeeId, float $waitSeconds): array
 {
-    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $employeeId): array {
-        $job = jg_mobile_print_next_job($pdo, $employeeId, $now);
+    return jg_mobile_scanner_wait(static function (int $now) use ($pdo, $stationEmployeeId): array {
+        $job = jg_mobile_print_next_job($pdo, $stationEmployeeId, $now);
         return [$job !== null, ['job' => $job]];
     }, $waitSeconds);
 }

@@ -1315,6 +1315,18 @@ if ($method === 'POST') {
         jg_store_ops_fulfillment_validate_key($key);
         $employeeId = jg_store_ops_orders_current_employee_id();
         $employeeName = jg_store_ops_orders_current_employee_name();
+        // A print station finishing a phone's order acts as the phone's
+        // profile, which claimed and scanned it. Only label-page actions.
+        $stationHandoff = trim((string) ($payload['station_handoff'] ?? ''));
+        if ($stationHandoff !== '' && in_array($action, ['fulfill_order', 'reprint_label'], true)) {
+            $entry = jg_store_ops_scan_handoff_read($stationHandoff, $key['order_id'], $employeeId);
+            if ($entry === null
+                || ($entry['key']['source_platform'] ?? '') !== $key['source_platform']
+                || ($entry['key']['source_account'] ?? '') !== $key['source_account']) {
+                jg_store_ops_orders_fail('This phone print has expired. Start the order again on the phone.', 409);
+            }
+            [$employeeId, $employeeName] = jg_store_ops_scan_handoff_actor($entry, $employeeId, $employeeName);
+        }
 
         if ($action === 'remove_order') {
             if (!jg_admin_employee_can_remove_orders($employeeId)) {
@@ -1589,7 +1601,8 @@ if (isset($_GET['scan_handoff'])) {
     try {
         $pdo = jg_store_ops_fulfillment_db();
         $row = jg_store_ops_fulfillment_fetch_order($pdo, $entry['key'], false);
-        $state = jg_store_ops_fulfillment_state_from_row($row, jg_store_ops_orders_current_employee_id());
+        [$actorId] = jg_store_ops_scan_handoff_actor($entry, jg_store_ops_orders_current_employee_id(), '');
+        $state = jg_store_ops_fulfillment_state_from_row($row, $actorId);
         if (!$row || empty($state['claimedBy']) || empty($state['currentEmployeeCanWork'])) {
             jg_store_ops_orders_fail('This order is completed, released or assigned to another employee. Return to the board.', 409);
         }

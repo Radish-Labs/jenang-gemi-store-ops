@@ -1,5 +1,9 @@
-// Print station: a computer in phone mode prints the labels for orders that
-// the phone (same profile) scanned. Runs in one Store Ops tab at a time.
+// Print station: a packing computer prints the labels for orders that phones
+// scanned, from any profile, whatever profile the computer is signed in to.
+// A computer counts as a packing computer when it has the print helper on,
+// printed a label in the last 14 days, or has the mobile scanner switched on;
+// other computers (an office laptop) never take phone labels. Runs in one
+// Store Ops tab per computer.
 document.addEventListener('DOMContentLoaded', () => {
   const settings = document.querySelector('[data-mobile-scanner-settings]');
   if (!settings || window.top !== window) return;
@@ -17,8 +21,19 @@ document.addEventListener('DOMContentLoaded', () => {
   let controller = null;
   let leaderTimer = 0;
 
-  const phoneMode = () => {
-    try { return window.localStorage.getItem(modeKey) === 'phone'; } catch (_error) { return false; }
+  const helperKey = 'jg-store-print-helper-v1';
+  const printedKey = 'jg-store-printed-order-event';
+  const recentPrintMs = 14 * 24 * 60 * 60 * 1000;
+  const isPackingComputer = () => {
+    try {
+      const storage = window.localStorage;
+      if (storage.getItem(modeKey) === 'phone') return true;
+      if (JSON.parse(storage.getItem(helperKey) || 'null')?.enabled) return true;
+      const printedAt = Date.parse(JSON.parse(storage.getItem(printedKey) || 'null')?.printedAt || '');
+      return Number.isFinite(printedAt) && Date.now() - printedAt < recentPrintMs;
+    } catch (_error) {
+      return false;
+    }
   };
 
   // Only one tab per computer listens, so a job never opens twice.
@@ -126,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeJob = taken.job;
     lastReported = '';
     jobDone = false;
-    orderTitle.textContent = taken.order_id;
+    orderTitle.textContent = taken.for_name ? `${taken.order_id} · for ${taken.for_name}` : taken.order_id;
     const query = new URLSearchParams({
       order: taken.order_id,
       account: taken.source_account || '',
@@ -162,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const loop = async () => {
     if (running) return;
     running = true;
-    while (phoneMode()) {
+    while (isPackingComputer()) {
       if (!isLeader()) {
         await sleep(3000);
         continue;
@@ -185,13 +200,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   leaderTimer = window.setInterval(() => {
-    if (phoneMode()) {
+    if (isPackingComputer()) {
       if (busy || running) isLeader();
       if (!running) loop();
     }
   }, 2000);
   window.addEventListener('storage', (event) => {
-    if (event.key === modeKey && phoneMode()) loop();
+    if ([modeKey, helperKey, printedKey].includes(event.key) && isPackingComputer()) loop();
   });
   window.addEventListener('pagehide', () => {
     window.clearInterval(leaderTimer);
@@ -203,5 +218,5 @@ document.addEventListener('DOMContentLoaded', () => {
       // Another tab takes over after 6 seconds.
     }
   });
-  if (phoneMode()) loop();
+  if (isPackingComputer()) loop();
 });

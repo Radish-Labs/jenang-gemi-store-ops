@@ -28,26 +28,51 @@ function jg_store_ops_scan_handoff_prepare(mixed $order, array $key): array
     return $order;
 }
 
-function jg_store_ops_scan_handoff_save(array $order, array $key, string $employeeId): string
+/**
+ * $actAs: a print station printing a phone's order saves the phone's profile
+ * here, and the label page completes the order as that profile.
+ *
+ * @param array{id:string,name:string}|null $actAs
+ */
+function jg_store_ops_scan_handoff_save(array $order, array $key, string $employeeId, ?array $actAs = null): string
 {
     $entries = $_SESSION['jg_scan_handoffs'] ?? [];
     $entries = array_filter(is_array($entries) ? $entries : [], static fn ($entry): bool =>
         is_array($entry) && (int) ($entry['expires_at'] ?? 0) > time()
     );
+    $entry = ['key' => $key, 'employee_id' => $employeeId, 'order' => $order,
+        'expires_at' => time() + JG_STORE_OPS_SCAN_HANDOFF_TTL];
+    if ($actAs !== null) {
+        $entry['act_as'] = ['id' => (string) $actAs['id'], 'name' => (string) $actAs['name']];
+    }
     // Refreshing/restarting the same order should not evict other active tabs.
-    foreach ($entries as $token => $entry) {
-        if ($entry['key'] === $key && $entry['employee_id'] === $employeeId) {
-            $entries[$token] = ['key' => $key, 'employee_id' => $employeeId, 'order' => $order,
-                'expires_at' => time() + JG_STORE_OPS_SCAN_HANDOFF_TTL];
+    foreach ($entries as $token => $existing) {
+        if ($existing['key'] === $key && $existing['employee_id'] === $employeeId
+            && ($existing['act_as'] ?? null) === ($entry['act_as'] ?? null)) {
+            $entries[$token] = $entry;
             $_SESSION['jg_scan_handoffs'] = $entries;
             return (string) $token;
         }
     }
     $token = bin2hex(random_bytes(24));
-    $entries[$token] = ['key' => $key, 'employee_id' => $employeeId, 'order' => $order,
-        'expires_at' => time() + JG_STORE_OPS_SCAN_HANDOFF_TTL];
+    $entries[$token] = $entry;
     $_SESSION['jg_scan_handoffs'] = array_slice($entries, -JG_STORE_OPS_SCAN_HANDOFF_LIMIT, null, true);
     return $token;
+}
+
+/**
+ * The profile an order action runs as: the phone's profile for a station
+ * hand-off, otherwise the signed-in one.
+ *
+ * @return array{0:string,1:string}
+ */
+function jg_store_ops_scan_handoff_actor(?array $entry, string $employeeId, string $employeeName): array
+{
+    $actAs = is_array($entry['act_as'] ?? null) ? $entry['act_as'] : null;
+    if ($actAs === null || trim((string) ($actAs['id'] ?? '')) === '') {
+        return [$employeeId, $employeeName];
+    }
+    return [(string) $actAs['id'], (string) ($actAs['name'] ?? $actAs['id'])];
 }
 
 function jg_store_ops_scan_handoff_read(string $token, string $orderId, string $employeeId): ?array

@@ -160,6 +160,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     source_platform: normalizeSourceKey(order?.platform || ''),
     source_account: sourceKeyFromOrder(order),
     label_backed: labelLoaded || Boolean(order?.labelBacked || order?.label_backed),
+    // Print station: completes the order as the phone's profile.
+    ...(params.get('station') === '1' && params.get('handoff') ? { station_handoff: params.get('handoff') } : {}),
     ...extra
   });
 
@@ -785,7 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         case 'queued':
           show(pcOffline ? 'No computer is ready' : 'Sent to the computer',
             pcOffline
-              ? 'Open Store Ops on the packing computer, signed in with this profile and with Settings > Use mobile scanner on. It prints as soon as it connects.'
+              ? 'Open Store Ops on the packing computer (any profile). It prints as soon as it connects.'
               : 'Waiting for the computer to start printing…', pcOffline ? 'error' : 'info');
           return false;
         case 'taken':

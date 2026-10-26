@@ -38,29 +38,35 @@ $request = jg_mobile_print_request($pdo, 'hani', $order, $key, $now);
 mobile_print_expect(false, $request['station_online'], 'No print station has checked in yet.');
 mobile_print_expect('queued', jg_mobile_print_job_state($pdo, 'hani', $request['job'], $now)['status'], 'New jobs wait in the queue.');
 
-// Another profile's computer never sees it.
-mobile_print_expect(null, jg_mobile_print_next_job($pdo, 'budi', $now), 'Jobs are private to the profile.');
-mobile_print_expect(null, jg_mobile_print_take($pdo, 'budi', $request['job'], $now), 'Another profile cannot take the job.');
-
-// The computer finds and takes it exactly once.
-$next = jg_mobile_print_next_job($pdo, 'hani', $now + 1);
-mobile_print_expect($request['job'], $next['job'] ?? null, 'The computer sees the queued job.');
-mobile_print_expect(true, jg_mobile_print_station_online($pdo, 'hani', $now + 1), 'Checking for jobs marks the computer online.');
-$taken = jg_mobile_print_take($pdo, 'hani', $request['job'], $now + 1);
+// A computer signed in to any profile finds and takes it exactly once.
+$next = jg_mobile_print_next_job($pdo, 'budi', $now + 1);
+mobile_print_expect($request['job'], $next['job'] ?? null, 'A computer on another profile sees the queued job.');
+mobile_print_expect(true, jg_mobile_print_station_online($pdo, $now + 1), 'Checking for jobs marks a computer online for every phone.');
+$taken = jg_mobile_print_take($pdo, $request['job'], $now + 1);
 mobile_print_expect('WAEXEC-1', $taken['order']['id'] ?? null, 'Taking the job returns the order snapshot.');
 mobile_print_expect($key, $taken['key'] ?? null, 'Taking the job returns the order key.');
-mobile_print_expect(null, jg_mobile_print_take($pdo, 'hani', $request['job'], $now + 1), 'A second tab cannot take the same job.');
+mobile_print_expect('hani', $taken['employee_id'] ?? null, 'Taking the job returns the phone profile to complete it as.');
+mobile_print_expect(null, jg_mobile_print_take($pdo, $request['job'], $now + 1), 'A second tab cannot take the same job.');
 mobile_print_expect(null, jg_mobile_print_next_job($pdo, 'hani', $now + 1), 'Taken jobs leave the queue.');
 
+// Two phones on different profiles queue at the same time; both print.
+$order2 = ['id' => 'WAEXEC-2', 'platform' => 'whatsapp', 'items' => [['sku' => 'B', 'quantity' => 1]]];
+$key2 = ['order_id' => 'WAEXEC-2', 'source_platform' => 'whatsapp', 'source_account' => 'whatsapp'];
+$budiJob = jg_mobile_print_request($pdo, 'budi', $order2, $key2, $now + 1);
+mobile_print_expect($budiJob['job'], jg_mobile_print_next_job($pdo, 'hani', $now + 1)['job'] ?? null, 'Another profile\'s phone job reaches the same computer.');
+mobile_print_expect('budi', jg_mobile_print_take($pdo, $budiJob['job'], $now + 1)['employee_id'] ?? null, 'It is completed as that phone\'s profile.');
+mobile_print_expect(true, jg_mobile_print_set_status($pdo, $budiJob['job'], 'printed', '', $now + 1), 'Its progress can be reported.');
+mobile_print_expect('missing', jg_mobile_print_job_state($pdo, 'hani', $budiJob['job'], $now + 1)['status'], 'Phones only read their own jobs.');
+
 // Progress reaches the phone; printed is final.
-mobile_print_expect(true, jg_mobile_print_set_status($pdo, 'hani', $request['job'], 'attention', 'Out of labels', $now + 2), 'Progress can be reported.');
+mobile_print_expect(true, jg_mobile_print_set_status($pdo, $request['job'], 'attention', 'Out of labels', $now + 2), 'Progress can be reported.');
 $state = jg_mobile_print_job_state($pdo, 'hani', $request['job'], $now + 2);
 mobile_print_expect(['attention', 'Out of labels', true], [$state['status'], $state['detail'], $state['station_online']], 'The phone sees the printer problem.');
-mobile_print_expect(true, jg_mobile_print_set_status($pdo, 'hani', $request['job'], 'printed', '', $now + 3), 'Printed can be reported.');
-mobile_print_expect(false, jg_mobile_print_set_status($pdo, 'hani', $request['job'], 'failed', 'late', $now + 4), 'A printed job cannot be changed afterwards.');
+mobile_print_expect(true, jg_mobile_print_set_status($pdo, $request['job'], 'printed', '', $now + 3), 'Printed can be reported.');
+mobile_print_expect(false, jg_mobile_print_set_status($pdo, $request['job'], 'failed', 'late', $now + 4), 'A printed job cannot be changed afterwards.');
 mobile_print_expect('printed', jg_mobile_print_job_state($pdo, 'hani', $request['job'], $now + 4)['status'], 'Printed stays printed.');
 try {
-    jg_mobile_print_set_status($pdo, 'hani', $request['job'], 'queued', '', $now);
+    jg_mobile_print_set_status($pdo, $request['job'], 'queued', '', $now);
     fwrite(STDERR, "Unknown status accepted\n");
     exit(1);
 } catch (InvalidArgumentException) {
