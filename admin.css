@@ -13724,3 +13724,123 @@ html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-st
   .admin-team-modal { padding: 0; place-items: end stretch; }
   .admin-team-card { width: 100%; max-height: calc(100dvh - 24px); border-radius: 24px 24px 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
+
+/* Settings on a phone: full screen, one top bar (close, title, Save), a
+   single swipeable row of tabs, and the content without boxes in boxes. */
+@media (max-width: 640px) {
+  .admin-store-settings-modal { padding: 0; align-items: stretch; place-items: stretch; }
+  .admin-store-settings-modal .admin-store-settings-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .admin-store-settings-modal .admin-settings-main { display: contents; }
+
+  .admin-store-settings-modal .admin-settings-header {
+    order: 0;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 10px;
+    border-bottom: 1px solid var(--admin-border);
+  }
+  .admin-store-settings-modal .admin-settings-header > div:first-child { order: 1; flex: 1; min-width: 0; }
+  .admin-store-settings-modal .admin-settings-kicker,
+  .admin-store-settings-modal .admin-settings-header p,
+  .admin-store-settings-modal .admin-settings-lock { display: none; }
+  .admin-store-settings-modal .admin-settings-header h3 {
+    margin: 0;
+    font-size: 19px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .admin-store-settings-modal .admin-settings-header-actions { display: contents; }
+  .admin-store-settings-modal .admin-settings-close { order: 0; flex: none; width: 42px; height: 42px; }
+  .admin-store-settings-modal .admin-settings-save {
+    order: 2;
+    flex: none;
+    width: auto;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 18px;
+    border-radius: 999px;
+    gap: 6px;
+  }
+  .admin-store-settings-modal .admin-settings-save span {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: nowrap;
+  }
+  .admin-store-settings-modal .admin-settings-save svg { width: 16px; height: 16px; }
+
+  .admin-store-settings-modal .admin-settings-sidebar {
+    order: 1;
+    flex: none;
+    padding: 10px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+  .admin-store-settings-modal .admin-settings-nav {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-store-settings-modal .admin-settings-nav::-webkit-scrollbar { display: none; }
+  .admin-store-settings-modal .admin-settings-tab {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    min-height: 40px;
+    padding: 0 14px 0 8px;
+    border-radius: 999px;
+  }
+  .admin-store-settings-modal .admin-settings-tab-icon { width: 26px; height: 26px; border-radius: 50%; }
+  .admin-store-settings-modal .admin-settings-tab-icon svg { width: 15px; height: 15px; }
+  .admin-store-settings-modal .admin-settings-tab strong { font-size: 14px; white-space: nowrap; }
+  .admin-store-settings-modal .admin-settings-tab br { display: none; }
+
+  .admin-store-settings-modal [data-store-settings-error] { order: 2; margin: 10px 16px 0; }
+  .admin-store-settings-modal .admin-settings-panels {
+    order: 3;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 16px calc(28px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-store-settings-modal .admin-settings-panel {
+    height: auto;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    animation: none;
+  }
+  .admin-store-settings-modal .admin-settings-section-head { gap: 12px; }
+  .admin-store-settings-modal .admin-settings-section-head h4 { font-size: 17px; }
+  .admin-store-settings-modal .admin-settings-section-head p { font-size: 13px; }
+  .admin-store-settings-modal .admin-theme-grid { grid-template-columns: 1fr; gap: 10px; }
+  .admin-store-settings-modal .admin-source-color-swatches { flex-wrap: wrap; }
+}
+
+/* Phones don't use the USB scanner or the Windows print helper. */
+:root[data-device="phone"] .admin-store-settings-modal :is([data-settings-tab="scanner"], [data-settings-tab="printer"]) { display: none; }
+.admin-settings-phone-note { margin: 18px 0 0; padding: 12px 14px; border: 1px dashed var(--admin-border); border-radius: 14px; font-size: 13px; color: var(--admin-muted); }
+.admin-store-settings-launch[hidden] { display: none !important; }

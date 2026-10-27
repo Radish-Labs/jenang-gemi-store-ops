@@ -120,6 +120,7 @@ function jg_store_ops_account_menu(array $employee, string $rootPrefix): void
             <?php jg_store_ops_team_modal($rootPrefix); ?>
         <?php endif; ?>
         <script src="<?php echo $script; ?>" defer></script>
+        <script src="<?php echo htmlspecialchars($rootPrefix . 'settings-phone.js?v=' . urlencode((string) @filemtime(__DIR__ . '/settings-phone.js')), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
     <?php
 }
 
