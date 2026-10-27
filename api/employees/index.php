@@ -87,6 +87,32 @@ if ($method !== 'POST') {
 $payload = jg_store_ops_employees_v2_request_json();
 $action = trim((string) ($payload['action'] ?? 'save_employee'));
 
+if ($action === 'delete_employee') {
+    $employeeId = jg_store_ops_employees_v2_normalize_id((string) ($payload['id'] ?? ''));
+    if ($employeeId === '') {
+        jg_store_ops_employees_v2_fail('Choose an account to delete.');
+    }
+    if (hash_equals($employeeId, jg_admin_current_employee_id())) {
+        jg_store_ops_employees_v2_fail('You cannot delete the account you are signed in with.');
+    }
+    if (jg_store_ops_fulfillment_is_admin_employee($employeeId)) {
+        jg_store_ops_employees_v2_fail('The admin account cannot be deleted. Turn it off instead.');
+    }
+    try {
+        $stmt = $pdo->prepare('DELETE FROM store_ops_employees_v2 WHERE id = :id');
+        $stmt->execute([':id' => $employeeId]);
+        if ($stmt->rowCount() !== 1) {
+            jg_store_ops_employees_v2_fail('That account no longer exists.', 404);
+        }
+        // Signs it out of every remembered device.
+        jg_admin_forget_employee_logins($pdo, $employeeId);
+        jg_store_ops_employees_v2_response($pdo, ['deleted_employee_id' => $employeeId]);
+    } catch (Throwable $error) {
+        error_log('Store Ops employee profile delete failed: ' . $error->getMessage());
+        jg_store_ops_employees_v2_fail('Unable to delete the account.', 500);
+    }
+}
+
 if ($action !== 'save_employee') {
     jg_store_ops_employees_v2_fail('Unknown employee action.', 400);
 }

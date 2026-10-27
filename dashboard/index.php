@@ -460,46 +460,6 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
         </div>
 
         <?php jg_store_ops_account_menu(['id' => $currentEmployeeId, 'name' => $currentEmployeeName, 'initial' => $currentEmployeeInitial, 'can_manage' => $currentEmployeeCanManageProfiles], '../'); ?>
-        <?php if ($currentEmployeeCanManageProfiles): ?>
-            <div class="admin-modal-shell admin-employee-profiles-modal" data-employee-profiles-modal hidden>
-                <div class="admin-modal-backdrop" data-close-employee-profiles></div>
-                <section class="admin-modal-card admin-employee-profiles-card" role="dialog" aria-modal="true" aria-labelledby="employee-profiles-title">
-                    <div class="admin-modal-head">
-                        <div>
-                            <span class="admin-panel-kicker">Profiles</span>
-                            <h3 id="employee-profiles-title">Store Ops Employees</h3>
-                        </div>
-                        <button type="button" class="admin-ghost-btn" data-close-employee-profiles>Close</button>
-                    </div>
-                    <form class="admin-employee-profile-form" data-employee-profile-form>
-                        <label class="admin-reprint-field">
-                            <span>Employee ID</span>
-                            <input class="admin-settings-input" name="id" autocomplete="off" placeholder="vincent" maxlength="64" required>
-                        </label>
-                        <label class="admin-reprint-field">
-                            <span>Display Name</span>
-                            <input class="admin-settings-input" name="display_name" autocomplete="name" placeholder="Vincent" maxlength="120" required>
-                        </label>
-                        <label class="admin-reprint-field">
-                            <span>PIN or Password</span>
-                            <input class="admin-settings-input" name="pin" type="password" autocomplete="new-password" placeholder="Required for new profile" minlength="4" maxlength="128">
-                        </label>
-                        <label class="admin-checkbox-line admin-employee-active-toggle">
-                            <input type="checkbox" name="active" checked>
-                            <span>Active login</span>
-                        </label>
-                        <p class="admin-form-error" data-employee-profile-error hidden></p>
-                        <div class="admin-modal-actions">
-                            <button type="button" class="admin-ghost-btn" data-new-employee-profile>New Profile</button>
-                            <button type="submit" class="admin-primary-btn">Save Profile</button>
-                        </div>
-                    </form>
-                    <div class="admin-employee-profile-list" data-employee-profile-list>
-                        <p class="admin-empty">Loading employee profiles.</p>
-                    </div>
-                </section>
-            </div>
-        <?php endif; ?>
 
         <div class="admin-modal-shell admin-reprint-modal" data-reprint-modal hidden>
             <div class="admin-modal-backdrop" data-close-reprint-modal></div>

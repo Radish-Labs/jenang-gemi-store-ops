@@ -108,9 +108,84 @@ function jg_store_ops_account_menu(array $employee, string $rootPrefix): void
                 </a>
                 <p class="admin-account-note">Then choose any account to sign in. This device stays signed in for 30 days until you log out.</p>
                 <?php if (!empty($employee['can_manage'])): ?>
-                    <button type="button" class="admin-ghost-btn" data-open-employee-profiles>Manage employee profiles</button>
+                    <button type="button" class="admin-ghost-btn" data-open-team>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+                        Team accounts
+                    </button>
                 <?php endif; ?>
                 <button type="button" class="admin-ghost-btn" data-close-account-menu>Cancel</button>
+            </section>
+        </div>
+        <?php if (!empty($employee['can_manage'])): ?>
+            <?php jg_store_ops_team_modal($rootPrefix); ?>
+        <?php endif; ?>
+        <script src="<?php echo $script; ?>" defer></script>
+    <?php
+}
+
+/**
+ * Team accounts: a list of everyone. Tap a person to rename them, change
+ * their PIN, turn sign-in off or delete them. Adding someone is its own step.
+ */
+function jg_store_ops_team_modal(string $rootPrefix): void
+{
+    $endpoint = htmlspecialchars($rootPrefix . 'api/employees-v2/', ENT_QUOTES, 'UTF-8');
+    $script = htmlspecialchars($rootPrefix . 'team-accounts.js?v=' . urlencode((string) @filemtime(__DIR__ . '/team-accounts.js')), ENT_QUOTES, 'UTF-8');
+    ?>
+        <div class="admin-modal-shell admin-team-modal" data-team-modal data-endpoint="<?php echo $endpoint; ?>" hidden>
+            <div class="admin-modal-backdrop" data-close-team></div>
+            <section class="admin-modal-card admin-team-card" role="dialog" aria-modal="true" aria-labelledby="team-title">
+                <header class="admin-team-head">
+                    <button type="button" class="admin-team-back" data-team-back aria-label="Back to the team" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <h3 id="team-title" data-team-title>Team accounts</h3>
+                    <button type="button" class="admin-team-close" data-close-team aria-label="Close">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                    </button>
+                </header>
+
+                <div class="admin-team-view" data-team-list-view>
+                    <div class="admin-team-list" data-team-list><p class="admin-team-empty">Loading…</p></div>
+                    <button type="button" class="admin-primary-btn admin-team-add" data-team-add>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        Add person
+                    </button>
+                </div>
+
+                <form class="admin-team-view admin-team-form" data-team-form autocomplete="off" hidden>
+                    <div class="admin-team-person" data-team-person hidden>
+                        <span class="admin-store-profile-avatar" data-team-person-initial aria-hidden="true"></span>
+                        <div>
+                            <strong data-team-person-name></strong>
+                            <span data-team-person-id></span>
+                        </div>
+                    </div>
+                    <label class="admin-team-field">
+                        <span>Name</span>
+                        <input class="admin-settings-input" name="display_name" type="text" autocomplete="off" maxlength="120" required>
+                    </label>
+                    <label class="admin-team-field" data-team-id-field>
+                        <span>Sign-in ID</span>
+                        <input class="admin-settings-input" name="id" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" required>
+                        <small>Made from the name. Can't be changed later.</small>
+                    </label>
+                    <label class="admin-team-field">
+                        <span data-team-pin-label>PIN</span>
+                        <input class="admin-settings-input" name="pin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="128">
+                        <small data-team-pin-help></small>
+                    </label>
+                    <label class="admin-team-switch">
+                        <input type="checkbox" name="active" checked>
+                        <span><strong>Can sign in</strong><small>Turn off to hide them from the sign-in screen.</small></span>
+                    </label>
+                    <p class="admin-form-error" data-team-error hidden></p>
+                    <button type="submit" class="admin-primary-btn admin-team-save" data-team-save>Save</button>
+                    <div class="admin-team-danger" data-team-danger hidden>
+                        <button type="button" class="admin-team-delete" data-team-delete>Delete account</button>
+                        <p data-team-delete-note></p>
+                    </div>
+                </form>
             </section>
         </div>
         <script src="<?php echo $script; ?>" defer></script>
@@ -451,44 +526,6 @@ function jg_store_ops_shell_close(): void
         </div>
 
         <?php jg_store_ops_account_menu(jg_store_ops_shell_employee(), (string) ($GLOBALS['jg_store_ops_shell_root_prefix'] ?? '../')); ?>
-        <div class="admin-modal-shell admin-employee-profiles-modal" data-employee-profiles-modal hidden>
-            <div class="admin-modal-backdrop" data-close-employee-profiles></div>
-            <section class="admin-modal-card admin-employee-profiles-card" role="dialog" aria-modal="true" aria-labelledby="employee-profiles-title">
-                <div class="admin-modal-head">
-                    <div>
-                        <span class="admin-panel-kicker">Profiles</span>
-                        <h3 id="employee-profiles-title">Store Ops Employees</h3>
-                    </div>
-                    <button type="button" class="admin-ghost-btn" data-close-employee-profiles>Close</button>
-                </div>
-                <form class="admin-employee-profile-form" data-employee-profile-form>
-                    <label>
-                        <span>Employee ID</span>
-                        <input class="admin-settings-input" name="id" type="text" autocomplete="off" placeholder="branch-vincent" required>
-                    </label>
-                    <label>
-                        <span>Display name</span>
-                        <input class="admin-settings-input" name="display_name" type="text" autocomplete="off" placeholder="Branch Vincent" required>
-                    </label>
-                    <label>
-                        <span>PIN</span>
-                        <input class="admin-settings-input" name="pin" type="password" autocomplete="new-password" placeholder="Required for new profile" minlength="4" maxlength="128">
-                    </label>
-                    <label class="admin-checkbox-line admin-employee-active-toggle">
-                        <input type="checkbox" name="active" checked>
-                        <span>Active employee profile</span>
-                    </label>
-                    <p class="admin-form-error" data-employee-profile-error hidden></p>
-                    <div class="admin-modal-actions">
-                        <button type="button" class="admin-ghost-btn" data-new-employee-profile>New Profile</button>
-                        <button type="submit" class="admin-primary-btn">Save Profile</button>
-                    </div>
-                </form>
-                <div class="admin-employee-profile-list" data-employee-profile-list>
-                    <p class="admin-empty">Loading employee profiles.</p>
-                </div>
-            </section>
-        </div>
     </div>
     <?php
 }

@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const close = () => { menu.hidden = true; };
   document.querySelectorAll('[data-open-account-menu]').forEach((button) => button.addEventListener('click', open));
-  menu.querySelectorAll('[data-close-account-menu], [data-open-employee-profiles]').forEach((node) => node.addEventListener('click', close));
+  menu.querySelectorAll('[data-close-account-menu], [data-open-team]').forEach((node) => node.addEventListener('click', close));
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !menu.hidden) close();
   });

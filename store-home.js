@@ -327,10 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsModal = document.querySelector('[data-store-settings-modal]');
   const settingsForm = document.querySelector('[data-store-settings-form]');
   const settingsError = document.querySelector('[data-store-settings-error]');
-  const employeeProfilesModal = document.querySelector('[data-employee-profiles-modal]');
-  const employeeProfileForm = document.querySelector('[data-employee-profile-form]');
-  const employeeProfileError = document.querySelector('[data-employee-profile-error]');
-  const employeeProfileList = document.querySelector('[data-employee-profile-list]');
   const sourceColorList = document.querySelector('[data-source-color-list]');
   const scannerTestScanButton = document.querySelector('[data-scanner-test-scan]');
   const scannerSelectButton = document.querySelector('[data-scanner-select]');
@@ -354,7 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const skuDbEndpoint = '../api/sku-db/';
   const ordersEndpoint = '../api/orders-v2/';
   const orderLookupEndpoint = '../api/order-lookup/';
-  const employeeProfilesEndpoint = '../api/employees-v2/';
   const profileSettingsEndpoint = '../api/profile-settings/';
   const scanBridgeEndpoint = '../api/scan-bridge/';
   const scanSerialEndpoint = '../api/scan-serial/';
@@ -372,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let skuCatalog = [];
   let partnerOrderSources = [];
-  let employeeProfiles = [];
   let sourceColorMap = {};
   let sourceColorRevision = 0;
   let sourceColorSavesPending = 0;
@@ -2030,162 +2024,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsModal) settingsModal.hidden = true;
   };
 
-  const normalizeEmployeeId = (value) => String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[._-]+|[._-]+$/g, '')
-    .slice(0, 64);
-
-  const showEmployeeProfileError = (message) => {
-    if (!employeeProfileError) return;
-    employeeProfileError.textContent = message;
-    employeeProfileError.hidden = false;
-  };
-
-  const clearEmployeeProfileError = () => {
-    if (!employeeProfileError) return;
-    employeeProfileError.textContent = '';
-    employeeProfileError.hidden = true;
-  };
-
-  const employeeProfileFields = () => ({
-    id: employeeProfileForm?.querySelector('input[name="id"]') || null,
-    displayName: employeeProfileForm?.querySelector('input[name="display_name"]') || null,
-    pin: employeeProfileForm?.querySelector('input[name="pin"]') || null,
-    active: employeeProfileForm?.querySelector('input[name="active"]') || null
-  });
-
-  const resetEmployeeProfileForm = () => {
-    if (!employeeProfileForm) return;
-    employeeProfileForm.reset();
-    const fields = employeeProfileFields();
-    if (fields.id instanceof HTMLInputElement) {
-      fields.id.readOnly = false;
-      fields.id.value = '';
-      fields.id.dataset.userEdited = '';
-    }
-    if (fields.displayName instanceof HTMLInputElement) fields.displayName.value = '';
-    if (fields.pin instanceof HTMLInputElement) {
-      fields.pin.value = '';
-      fields.pin.placeholder = 'Required for new profile';
-    }
-    if (fields.active instanceof HTMLInputElement) fields.active.checked = true;
-    clearEmployeeProfileError();
-  };
-
-  const renderEmployeeProfiles = () => {
-    if (!employeeProfileList) return;
-    if (!employeeProfiles.length) {
-      employeeProfileList.innerHTML = '<p class="admin-empty">No employee profiles yet.</p>';
-      return;
-    }
-
-    employeeProfileList.innerHTML = employeeProfiles.map((employee) => {
-      const isActive = Boolean(employee.active);
-      return `
-        <article class="admin-employee-profile-row">
-          <span class="admin-employee-profile-avatar" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
-          </span>
-          <div class="admin-employee-profile-main">
-            <strong>${escapeHtml(employee.display_name || employee.id)}</strong>
-            <span>${escapeHtml(employee.id)}</span>
-          </div>
-          <span class="admin-status-badge ${isActive ? '' : 'admin-status-badge-warn'}">${isActive ? 'Active' : 'Inactive'}</span>
-          <button type="button" class="admin-ghost-btn" data-edit-employee-profile="${escapeHtml(employee.id)}">Edit</button>
-        </article>
-      `;
-    }).join('');
-  };
-
-  const loadEmployeeProfiles = async () => {
-    if (!employeeProfilesModal) return;
-    if (employeeProfileList) employeeProfileList.innerHTML = '<p class="admin-empty">Loading employee profiles.</p>';
-    const response = await fetch(employeeProfilesEndpoint, {
-      cache: 'no-store',
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' }
-    });
-    const payload = await readJsonResponse(response, 'Unable to load employee profiles.');
-    if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || 'Unable to load employee profiles.');
-    }
-    employeeProfiles = Array.isArray(payload.employees) ? payload.employees : [];
-    renderEmployeeProfiles();
-  };
-
-  const editEmployeeProfile = (employeeId) => {
-    const employee = employeeProfiles.find((item) => String(item.id || '') === employeeId);
-    if (!employee || !employeeProfileForm) return;
-    const fields = employeeProfileFields();
-    if (fields.id instanceof HTMLInputElement) {
-      fields.id.value = employee.id || '';
-      fields.id.readOnly = true;
-      fields.id.dataset.userEdited = '1';
-    }
-    if (fields.displayName instanceof HTMLInputElement) fields.displayName.value = employee.display_name || '';
-    if (fields.pin instanceof HTMLInputElement) {
-      fields.pin.value = '';
-      fields.pin.placeholder = 'Leave blank to keep current PIN';
-    }
-    if (fields.active instanceof HTMLInputElement) fields.active.checked = Boolean(employee.active);
-    clearEmployeeProfileError();
-    if (fields.displayName instanceof HTMLInputElement) fields.displayName.focus();
-  };
-
-  const openEmployeeProfilesModal = () => {
-    if (!employeeProfilesModal) return;
-    resetEmployeeProfileForm();
-    employeeProfilesModal.hidden = false;
-    loadEmployeeProfiles()
-      .then(() => {
-        const fields = employeeProfileFields();
-        if (fields.displayName instanceof HTMLInputElement) window.setTimeout(() => fields.displayName.focus(), 40);
-      })
-      .catch((error) => {
-        employeeProfiles = [];
-        renderEmployeeProfiles();
-        showEmployeeProfileError(error instanceof Error ? error.message : 'Unable to load employee profiles.');
-      });
-  };
-
-  const closeEmployeeProfilesModal = () => {
-    if (employeeProfilesModal) employeeProfilesModal.hidden = true;
-  };
-
-  const saveEmployeeProfile = async () => {
-    if (!employeeProfileForm) return;
-    const fields = employeeProfileFields();
-    const id = fields.id instanceof HTMLInputElement ? normalizeEmployeeId(fields.id.value) : '';
-    const displayName = fields.displayName instanceof HTMLInputElement ? fields.displayName.value.trim() : '';
-    const pin = fields.pin instanceof HTMLInputElement ? fields.pin.value : '';
-    const active = fields.active instanceof HTMLInputElement ? fields.active.checked : true;
-
-    clearEmployeeProfileError();
-
-    const response = await fetch(employeeProfilesEndpoint, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        action: 'save_employee',
-        mode: fields.id instanceof HTMLInputElement && fields.id.readOnly ? 'update' : 'create',
-        id,
-        display_name: displayName,
-        pin,
-        active
-      })
-    });
-    const payload = await readJsonResponse(response, 'Unable to save employee profile.');
-    if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || 'Unable to save employee profile.');
-    }
-
-    employeeProfiles = Array.isArray(payload.employees) ? payload.employees : [];
-    renderEmployeeProfiles();
-    resetEmployeeProfileForm();
-  };
 
   const minutesRemaining = (order) => orderPresentation.minutesRemaining(order);
   const isCriticalOrder = (order) => orderPresentation.isCriticalOrder(order);
@@ -3471,9 +3309,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (compactSidebarQuery.matches) setSidebarExpanded(false, { persist: false });
     openSettingsModal();
   });
-  document.querySelectorAll('[data-open-employee-profiles]').forEach((button) => {
-    button.addEventListener('click', openEmployeeProfilesModal);
-  });
   sidebarToggles.forEach((button) => {
     button.addEventListener('click', () => {
       setSidebarExpanded(!root.classList.contains('is-sidebar-expanded'));
@@ -3539,42 +3374,10 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', closeSettingsModal);
   });
 
-  document.querySelectorAll('[data-close-employee-profiles]').forEach((button) => {
-    button.addEventListener('click', closeEmployeeProfilesModal);
-  });
 
-  document.querySelector('[data-new-employee-profile]')?.addEventListener('click', () => {
-    resetEmployeeProfileForm();
-    const fields = employeeProfileFields();
-    if (fields.displayName instanceof HTMLInputElement) fields.displayName.focus();
-  });
 
-  employeeProfileList?.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    const button = target?.closest('[data-edit-employee-profile]');
-    if (!(button instanceof HTMLButtonElement)) return;
-    editEmployeeProfile(button.dataset.editEmployeeProfile || '');
-  });
 
-  employeeProfileForm?.addEventListener('input', (event) => {
-    const fields = employeeProfileFields();
-    if (!(fields.id instanceof HTMLInputElement) || fields.id.readOnly) return;
-    if (event.target === fields.id) {
-      fields.id.dataset.userEdited = '1';
-      fields.id.value = normalizeEmployeeId(fields.id.value);
-      return;
-    }
-    if (event.target === fields.displayName && fields.id.dataset.userEdited !== '1') {
-      fields.id.value = normalizeEmployeeId(fields.displayName?.value || '');
-    }
-  });
 
-  employeeProfileForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    saveEmployeeProfile().catch((error) => {
-      showEmployeeProfileError(error instanceof Error ? error.message : 'Unable to save employee profile.');
-    });
-  });
 
   settingsForm?.addEventListener('submit', async (event) => {
     event.preventDefault();

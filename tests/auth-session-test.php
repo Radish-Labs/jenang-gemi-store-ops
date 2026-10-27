@@ -32,13 +32,17 @@ auth_session_expect(str_contains($employeesApi, "\$mode === 'create' && \$isExis
 auth_session_expect(str_contains($employeesApi, 'AND id <> :id AND active = 1'), 'Two active accounts must not share a name.');
 auth_session_expect(str_contains($employeesApi, 'jg_admin_forget_employee_logins($pdo, $employeeId);'), 'A new PIN must sign the account out of remembered devices.');
 auth_session_expect(file_get_contents(dirname(__DIR__) . '/api/employees/index.php') === $employeesApi, 'Both employee APIs must stay identical.');
+$team = (string) file_get_contents(dirname(__DIR__) . '/team-accounts.js');
+auth_session_expect(str_contains($team, "mode: editing ? 'update' : 'create'"), 'Team accounts must say whether it adds or edits an account.');
+auth_session_expect(str_contains($team, "action: 'delete_employee'") && str_contains($team, 'Tap again to delete'), 'Deleting an account takes two taps.');
+auth_session_expect(str_contains($employeesApi, "\$action === 'delete_employee'") && str_contains($employeesApi, 'You cannot delete the account you are signed in with.') && str_contains($employeesApi, 'The admin account cannot be deleted.'), 'You cannot delete yourself or the admin account.');
+auth_session_expect(preg_match('/name="id"[^>]*autocomplete="off"/', $shell) === 1, 'Chrome must not fill a saved login into the new-account ID.');
 foreach (['store-shell.js', 'store-home.js'] as $script) {
-    auth_session_expect(str_contains((string) file_get_contents(dirname(__DIR__) . '/' . $script), "mode: fields.id instanceof HTMLInputElement && fields.id.readOnly ? 'update' : 'create'"), $script . ' must say whether it creates or edits a profile.');
+    auth_session_expect(!str_contains((string) file_get_contents(dirname(__DIR__) . '/' . $script), 'save_employee'), $script . ': accounts are only managed in team-accounts.js.');
 }
 foreach (['store-ops-shell.php' => $shell, 'dashboard/index.php' => $dashboard] as $file => $markup) {
-    auth_session_expect(substr_count($markup, 'data-open-account-menu') === 2 && preg_match('/class="admin-store-(sidebar|header)-profile" data-open-employee-profiles/', $markup) !== 1, $file . ': tapping your name must open the account menu, not the profile editor.');
+    auth_session_expect(substr_count($markup, 'data-open-account-menu') === 2 && !str_contains($markup, 'data-employee-profiles-modal'), $file . ': tapping your name must open the account menu, not the old profile editor.');
     auth_session_expect(str_contains($markup, 'jg_store_ops_account_menu('), $file . ' must include the account menu.');
-    auth_session_expect(preg_match('/name="id"[^>]*autocomplete="off"/', $markup) === 1, $file . ': Chrome must not fill a saved login into the new-profile ID.');
 }
 
 echo "auth-session-test: ok\n";
