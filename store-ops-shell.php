@@ -273,6 +273,7 @@ function jg_store_ops_shell_open(array $options = []): void
                     <?php echo jg_store_ops_shell_svg('settings'); ?>
                     <span>Settings</span>
                 </button>
+                <p class="admin-sidebar-build">Build <?php echo htmlspecialchars(JG_STORE_OPS_BUILD, ENT_QUOTES, 'UTF-8'); ?></p>
             </footer>
         </aside>
 
