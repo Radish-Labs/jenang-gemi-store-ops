@@ -279,6 +279,30 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const board = document.querySelector('[data-order-board]');
+
+  // Finished orders whose update to Shopee/TikTok or the website keeps
+  // failing. Store Ops keeps retrying by itself; this just makes it visible.
+  let statusSyncNode = null;
+  const renderStatusSyncWarning = (failing) => {
+    if (!board) return;
+    if (!failing.length) {
+      if (statusSyncNode) statusSyncNode.hidden = true;
+      return;
+    }
+    if (!statusSyncNode) {
+      statusSyncNode = document.createElement('div');
+      statusSyncNode.className = 'admin-status-sync-warning';
+      statusSyncNode.setAttribute('role', 'status');
+      board.parentNode?.insertBefore(statusSyncNode, board);
+    }
+    const names = { shopee: 'Shopee', tiktok: 'TikTok', whatsapp: 'the WhatsApp dashboard', jenang_gemi_website: 'the website', zero_website: 'the ZERO website' };
+    const first = failing[0];
+    const where = names[String(first.platform || '')] || 'the other system';
+    const count = failing.length;
+    statusSyncNode.textContent = `${count === 1 ? `Order ${first.order_id} is` : `${count} finished orders are`} done here but not yet confirmed by ${count === 1 ? where : 'Shopee/TikTok or the website'}. Store Ops keeps retrying by itself.${first.error ? ` Last problem: ${first.error}` : ''}`;
+    statusSyncNode.hidden = false;
+  };
+
   const modal = document.querySelector('[data-fulfillment-modal]');
   const modalTitle = document.querySelector('[data-modal-title]');
   const modalStepLabel = document.querySelector('[data-modal-step-label]');
@@ -1527,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     ordersEtag = response.headers.get('ETag') || response.headers.get('etag') || ordersEtag;
     const meta = payload.meta && typeof payload.meta === 'object' ? payload.meta : {};
+    renderStatusSyncWarning(Array.isArray(meta.status_sync?.failing) ? meta.status_sync.failing : []);
     bigSetEnabled = Boolean(meta.big_set_enabled);
     automaticArrangementPaused = Boolean(meta.automation_paused);
     const refreshErrors = Array.isArray(meta.errors) ? meta.errors : [];

@@ -77,6 +77,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const orders = readOrders();
   const order = handoffOrder || orders.find((item) => item && String(item.id || '') === orderId) || null;
+  // Start downloading the shipping label while scanning, so it is ready the
+  // moment printing starts (the server keeps it for 10 minutes). The answer
+  // is ignored here; a failure just means the label page fetches it itself.
+  if (order) {
+    window.setTimeout(() => {
+      const label = new URLSearchParams({ shipping_label: '1', order: String(order.id || '') });
+      const platform = String(order.platform || 'shopee').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+      const account = String(params.get('account') || order.sourceAccountKey || '');
+      const packageNumber = String(order.packageNumber || order.package_number || '');
+      label.set('platform', platform);
+      if (account) label.set('account', account);
+      if (packageNumber) label.set('package', packageNumber);
+      fetch(`../../api/orders-v2/?${label}`, { credentials: 'same-origin', priority: 'low' })
+        .then((response) => response.body?.cancel?.())
+        .catch(() => {});
+    }, 400);
+  }
   const scans = new Map();
   let scanBuffer = '';
   let scanBufferTimer = 0;

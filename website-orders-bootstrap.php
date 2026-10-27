@@ -832,9 +832,23 @@ function jg_store_ops_website_callback(PDO $pdo, string $platform, string $order
     // fulfillment transaction is final. Persist locally before the remote
     // callback; if the callback fails, the caller keeps its durable action
     // queued and retries this idempotent operation.
+    jg_store_ops_website_set_local_status($pdo, $platform, $orderId, $status);
+    jg_store_ops_website_send_status($platform, $orderId, $status);
+}
+
+/** The Store Ops copy of a website/WhatsApp order (what the board lists). */
+function jg_store_ops_website_set_local_status(PDO $pdo, string $platform, string $orderId, string $status): void
+{
+    if (!in_array($platform, JG_STORE_OPS_WEBSITE_PLATFORMS, true)) return;
     $pdo->prepare(
         'UPDATE store_ops_website_orders SET status = :status, updated_at = :updated_at WHERE source_platform = :platform AND order_id = :order_id'
-    )->execute([':status' => $status, ':updated_at' => jg_store_ops_website_now(), ':platform' => $platform, ':order_id' => $orderId]);
+    )->execute([':status' => strtoupper($status), ':updated_at' => jg_store_ops_website_now(), ':platform' => $platform, ':order_id' => $orderId]);
+}
+
+/** Tell the Executive Dashboard (sent from the status queue). */
+function jg_store_ops_website_send_status(string $platform, string $orderId, string $status): void
+{
+    $status = strtoupper($status);
     $base = rtrim(jg_store_ops_website_config('JG_EXECUTIVE_DASHBOARD_URL', 'executive_dashboard_url', 'https://admin.jenanggemi.com'), '/');
     $callbackPath = $platform === 'whatsapp' ? '/api/whatsapp-orders/?action=status_callback' : '/api/website-orders/?action=status_callback';
     jg_store_ops_website_request('POST', $base . $callbackPath, [
@@ -1131,6 +1145,16 @@ function jg_store_ops_website_proxy_label(array $order): never
 {
     $url = trim((string) ($order['label_url'] ?? ''));
     if ($url === '') throw new RuntimeException('Website order label URL is missing.');
+    $cacheKey = 'website|' . $url;
+    $cached = function_exists('jg_label_cache_get') ? jg_label_cache_get($cacheKey) : null;
+    if ($cached !== null) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="website-label-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($order['order_id'] ?? $order['id'] ?? 'order')) . '.pdf"');
+        header('Cache-Control: private, no-store');
+        header('X-Label-Cache: hit');
+        echo $cached['raw'];
+        exit;
+    }
     $token = jg_store_ops_website_token();
     $context = stream_context_create(['http' => [
         'method' => 'GET',
@@ -1142,6 +1166,7 @@ function jg_store_ops_website_proxy_label(array $order): never
     if (!is_string($raw) || !str_starts_with($raw, '%PDF-')) {
         throw new RuntimeException('Unable to load executive-uploaded website label.');
     }
+    if (function_exists('jg_label_cache_put')) jg_label_cache_put($cacheKey, $raw);
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="website-label-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($order['order_id'] ?? $order['id'] ?? 'order')) . '.pdf"');
     header('Cache-Control: private, no-store');

@@ -9,6 +9,8 @@ require_once dirname(__DIR__, 2) . '/store-ops-fulfillment-runtime.php';
 require_once dirname(__DIR__, 2) . '/website-orders-bootstrap.php';
 require_once dirname(__DIR__, 2) . '/marketplace-queue-policy.php';
 require_once dirname(__DIR__, 2) . '/scan-handoff.php';
+require_once dirname(__DIR__, 2) . '/label-cache.php';
+require_once dirname(__DIR__, 2) . '/status-outbox.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -155,6 +157,43 @@ function jg_store_ops_orders_marketplace_status_callback(array $key, string $sta
         throw new RuntimeException('API Ingest did not accept the marketplace fulfillment callback.');
     }
 }
+
+/** Send one queued status update (see status-outbox.php). */
+function jg_store_ops_orders_send_outbox_row(array $row): void
+{
+    $key = [
+        'source_platform' => (string) $row['source_platform'],
+        'source_account' => (string) $row['source_account'],
+        'order_id' => (string) $row['order_id'],
+        'package_id' => (string) $row['package_id'],
+    ];
+    if ($row['target'] === 'marketplace') {
+        jg_store_ops_orders_marketplace_status_callback($key, (string) $row['status']);
+        return;
+    }
+    if ($row['target'] === 'website') {
+        jg_store_ops_website_send_status($key['source_platform'], $key['order_id'], (string) $row['status']);
+        return;
+    }
+    throw new RuntimeException('Unknown status target ' . $row['target']);
+}
+
+// After every orders request has answered, send queued status updates that
+// are due: right away after finishing an order, and as retries on the board's
+// regular refreshes.
+register_shutdown_function(static function (): void {
+    try {
+        $pdo = jg_store_ops_fulfillment_db();
+        jg_status_outbox_ensure($pdo);
+        $due = $pdo->prepare('SELECT 1 FROM store_ops_status_outbox_v1 WHERE done_at IS NULL AND next_attempt_at <= :now LIMIT 1');
+        $due->execute([':now' => time()]);
+        if ($due->fetchColumn() === false) return;
+        jg_status_outbox_finish_response();
+        jg_status_outbox_flush($pdo, 'jg_store_ops_orders_send_outbox_row');
+    } catch (Throwable $error) {
+        error_log('Store Ops status queue failed: ' . $error->getMessage());
+    }
+});
 
 /** @return array<string,mixed> */
 function jg_store_ops_orders_arrange_instant(
@@ -612,8 +651,15 @@ function jg_store_ops_orders_filter_marketplace_queue(
     return $filtered;
 }
 
-function jg_store_ops_orders_proxy_file(string $url, string $fallbackFilename): void
+function jg_store_ops_orders_proxy_file(string $url, string $fallbackFilename, string $cacheKey = ''): void
 {
+    if ($cacheKey !== '') {
+        $cached = jg_label_cache_get($cacheKey);
+        if ($cached !== null) {
+            header('X-Label-Cache: hit');
+            jg_store_ops_orders_emit_file($cached['raw'], 200, $cached['content_type'], $cached['headers'], $fallbackFilename);
+        }
+    }
     if (function_exists('curl_init')) {
         $curl = curl_init($url);
         if ($curl === false) {
@@ -645,6 +691,9 @@ function jg_store_ops_orders_proxy_file(string $url, string $fallbackFilename): 
             jg_store_ops_orders_fail($error !== '' ? $error : 'Unable to load shipping label.', 502);
         }
 
+        if ($cacheKey !== '' && $status < 400) {
+            jg_label_cache_put($cacheKey, $raw, $contentType, jg_store_ops_orders_label_cache_headers($headers));
+        }
         jg_store_ops_orders_emit_file($raw, $status, $contentType, $headers, $fallbackFilename);
     }
 
@@ -661,7 +710,18 @@ function jg_store_ops_orders_proxy_file(string $url, string $fallbackFilename): 
     }
 
     $headers = jg_store_ops_orders_parse_headers($http_response_header ?? []);
+    if ($cacheKey !== '') {
+        jg_label_cache_put($cacheKey, $raw, (string) ($headers['content-type'] ?? 'application/pdf'), jg_store_ops_orders_label_cache_headers($headers));
+    }
     jg_store_ops_orders_emit_file($raw, 200, (string) ($headers['content-type'] ?? ''), $headers, $fallbackFilename);
+}
+
+/** The few label headers worth keeping with a cached label. */
+function jg_store_ops_orders_label_cache_headers(array $headers): array
+{
+    return array_intersect_key($headers, array_flip([
+        'content-disposition', 'x-shopee-shipping-document-type', 'x-shopee-package-number',
+    ]));
 }
 
 function jg_store_ops_orders_emit_file(string $raw, int $status, string $contentType, array $headers, string $fallbackFilename): void
@@ -1462,7 +1522,8 @@ if ($method === 'POST') {
             $row = jg_store_ops_fulfillment_claim($pdo, $key, $employeeId, $employeeName);
             if ($key['source_platform'] === 'whatsapp') {
                 try {
-                    jg_store_ops_website_callback($pdo, 'whatsapp', $key['order_id'], 'IS_BEING_FULFILLED');
+                    jg_store_ops_website_set_local_status($pdo, 'whatsapp', $key['order_id'], 'IS_BEING_FULFILLED');
+                    jg_status_outbox_add($pdo, 'website', $key, 'IS_BEING_FULFILLED');
                 } catch (Throwable $callbackError) {
                     error_log('WhatsApp order claim callback failed: ' . $callbackError->getMessage());
                 }
@@ -1476,7 +1537,8 @@ if ($method === 'POST') {
             $row = jg_store_ops_fulfillment_claim($pdo, $key, $employeeId, $employeeName);
             if ($key['source_platform'] === 'whatsapp') {
                 try {
-                    jg_store_ops_website_callback($pdo, 'whatsapp', $key['order_id'], 'IS_BEING_FULFILLED');
+                    jg_store_ops_website_set_local_status($pdo, 'whatsapp', $key['order_id'], 'IS_BEING_FULFILLED');
+                    jg_status_outbox_add($pdo, 'website', $key, 'IS_BEING_FULFILLED');
                 } catch (Throwable $callbackError) {
                     error_log('WhatsApp order claim callback failed: ' . $callbackError->getMessage());
                 }
@@ -1520,18 +1582,11 @@ if ($method === 'POST') {
                 jg_store_ops_orders_partner_update_status($key['order_id'], 'IS_BEING_FULFILLED');
             }
             if (!$alreadyFulfilled && in_array($key['source_platform'], JG_STORE_OPS_WEBSITE_PLATFORMS, true)) {
-                try {
-                    jg_store_ops_website_callback($pdo, $key['source_platform'], $key['order_id'], 'IS_BEING_FULFILLED');
-                } catch (Throwable $callbackError) {
-                    error_log('Website order fulfillment callback failed: ' . $callbackError->getMessage());
-                }
+                jg_store_ops_website_set_local_status($pdo, $key['source_platform'], $key['order_id'], 'IS_BEING_FULFILLED');
+                jg_status_outbox_add($pdo, 'website', $key, 'IS_BEING_FULFILLED');
             }
             if (!$alreadyFulfilled && in_array($key['source_platform'], ['shopee', 'tiktok'], true)) {
-                try {
-                    jg_store_ops_orders_marketplace_status_callback($key, 'LABEL_PRINTED');
-                } catch (Throwable $callbackError) {
-                    error_log('Marketplace label-printed callback failed: ' . $callbackError->getMessage());
-                }
+                jg_status_outbox_add($pdo, 'marketplace', $key, 'LABEL_PRINTED');
             }
             jg_store_ops_orders_fulfillment_response($pdo, $row);
         }
@@ -1561,18 +1616,15 @@ if ($method === 'POST') {
             if ($key['source_platform'] === 'partner') {
                 jg_store_ops_orders_partner_update_status($key['order_id'], 'FULFILLED');
             }
+            // The other systems are told from the status queue, right after
+            // this answers, and retried until they accept. The queue row is
+            // saved before answering, so the update can't be lost.
             if (in_array($key['source_platform'], JG_STORE_OPS_WEBSITE_PLATFORMS, true)) {
-                // Do not acknowledge the browser's durable completion action
-                // until the upstream source also accepts the terminal state.
-                jg_store_ops_website_callback($pdo, $key['source_platform'], $key['order_id'], 'FULFILLED');
+                jg_store_ops_website_set_local_status($pdo, $key['source_platform'], $key['order_id'], 'FULFILLED');
+                jg_status_outbox_add($pdo, 'website', $key, 'FULFILLED');
             }
             if (in_array($key['source_platform'], ['shopee', 'tiktok'], true)) {
-                try {
-                    jg_store_ops_orders_marketplace_status_callback($key, 'IS_PROCESSED');
-                } catch (Throwable $callbackError) {
-                    error_log('Marketplace processed callback failed: ' . $callbackError->getMessage());
-                    throw new RuntimeException('Marketplace did not acknowledge the processed status. Store Ops will retry.');
-                }
+                jg_status_outbox_add($pdo, 'marketplace', $key, 'IS_PROCESSED');
             }
             jg_store_ops_orders_fulfillment_response($pdo, $row);
         }
@@ -1686,7 +1738,7 @@ if (isset($_GET['shipping_label'])) {
         if ($filename === '') {
             $filename = 'partner-label-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $orderSn) . '.pdf';
         }
-        jg_store_ops_orders_proxy_file($labelUrl, $filename);
+        jg_store_ops_orders_proxy_file($labelUrl, $filename, 'partner|' . $orderSn);
     }
 
     if ($baseUrl === '' || $sources === []) {
@@ -1726,7 +1778,8 @@ if (isset($_GET['shipping_label'])) {
         'reprint' => in_array(strtolower(trim((string) ($_GET['reprint'] ?? ''))), ['1', 'true', 'yes', 'on'], true) ? '1' : '0',
     ]);
     $url = $baseUrl . '/' . rawurlencode($platform) . '/orders/shipping-label?' . $query;
-    jg_store_ops_orders_proxy_file($url, $platform . '-label-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $orderSn) . '.pdf');
+    $labelCacheKey = implode('|', [$platform, $account, $orderSn, trim((string) ($_GET['package'] ?? $_GET['package_id'] ?? ''))]);
+    jg_store_ops_orders_proxy_file($url, $platform . '-label-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $orderSn) . '.pdf', $labelCacheKey);
 }
 
 if ($baseUrl === '' || $sources === []) {
@@ -1884,6 +1937,11 @@ $decoded['meta']['marketplace_feed_mode'] = !$localHardSetKnown
 $decoded['meta']['big_set_enabled'] = $localHardSetEnabled;
 $decoded['meta']['automation_paused'] = $localAutomationPaused;
 $decoded['meta']['count'] = count($decoded['orders']);
+try {
+    $decoded['meta']['status_sync'] = ['failing' => jg_status_outbox_failing(jg_store_ops_fulfillment_db())];
+} catch (Throwable) {
+    $decoded['meta']['status_sync'] = ['failing' => []];
+}
 $decoded['meta']['current_employee'] = [
     'id' => jg_store_ops_orders_current_employee_id(),
     'display_name' => jg_store_ops_orders_current_employee_name(),

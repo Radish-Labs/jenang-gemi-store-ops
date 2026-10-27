@@ -13879,3 +13879,7 @@ html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-st
 .admin-print-toast-reprint[hidden] { display: none; }
 .admin-print-toast-reprint:disabled { opacity: .6; }
 .admin-print-toast-close { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: transparent; color: var(--admin-muted); cursor: pointer; }
+
+/* Finished orders not yet confirmed by Shopee/TikTok/website (retrying). */
+.admin-status-sync-warning { margin: 0 0 10px; padding: 10px 14px; border: 1px solid var(--admin-warning); border-radius: 14px; color: var(--admin-warning); font-size: 13px; font-weight: 700; }
+.admin-status-sync-warning[hidden] { display: none; }
