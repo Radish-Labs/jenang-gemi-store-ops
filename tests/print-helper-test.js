@@ -33,7 +33,7 @@ const jsonResponse = (status, body) => ({
 const sourceChecks = () => {
   assert.match(labelScript, /const startHelperMode = async \(\) => \{\s*if \(!printHelper \|\| !helperSettings\.enabled \|\| !labelBlob\) return;/, 'only a station that switched the helper on may look for it');
   const startFlow = labelScript.match(/const startHelperMode = async \(\) => \{[\s\S]*?\n  \};/)[0];
-  assert.match(startFlow, /if \(isReprint\) return;[\s\S]*if \(hasAutoPrinted\(\)\) \{[\s\S]*return;[\s\S]*printThroughHelper\(\);/, 'a finished scan prints by itself, but a reprint or a reloaded tab must not');
+  assert.match(startFlow, /if \(isReprint && !stationMode && !autoReprint\) return;[\s\S]*if \(hasAutoPrinted\(\) && !stationMode && !autoReprint\) \{[\s\S]*return;[\s\S]*printThroughHelper\(\);/, 'a finished scan, a print station job and a toast Reprint print by themselves; a reprint opened by hand or a reloaded tab must not');
   const helperFlow = labelScript.match(/const printThroughHelper = async \(\) => \{[\s\S]*?\n  \};/)[0];
   assert.match(helperFlow, /if \(outcome\.state === 'done'\) \{[\s\S]*?await finishHelperPrint\(\);/, 'the order completes only after the printer took the label');
   assert.doesNotMatch(helperFlow, /submitPrintCompletion|markPrinted/, 'a failed or unconfirmed print must never complete the order');

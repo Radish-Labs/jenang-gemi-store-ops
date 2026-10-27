@@ -497,5 +497,6 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
     </div>
     <script src="../store-home.js?v=<?php echo urlencode($storeHomeJsVersion ?: '1'); ?>" defer></script>
     <script src="../phone-app.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/phone-app.js')); ?>" defer></script>
+    <script src="../print-toast.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/print-toast.js')); ?>" defer></script>
 </body>
 </html>

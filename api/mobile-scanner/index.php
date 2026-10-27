@@ -108,11 +108,13 @@ try {
             $order = is_array($payload['order'] ?? null) ? $payload['order'] : [];
             $key = jg_mobile_print_verified_key($pdo, $order, $employeeId);
             // Turn and size chosen on the phone; the computer prints with them.
-            unset($order['print_layout']);
+            unset($order['print_layout'], $order['print_reprint']);
             if (is_array($payload['layout'] ?? null)) {
                 $order['print_layout'] = jg_mobile_print_clean_layout($payload['layout']);
             }
             jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_request($pdo, $employeeId, $order, $key, $now));
+        case 'print_again':
+            jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_again($pdo, $employeeId, (int) ($payload['job'] ?? 0), $now));
         case 'station_wait':
             jg_mobile_scanner_respond(['ok' => true] + jg_mobile_print_station_wait($pdo, $employeeId, (float) ($payload['wait'] ?? 0)));
         case 'station_take':
@@ -124,12 +126,17 @@ try {
             }
             try {
                 $phoneEmployeeId = $taken['employee_id'];
-                jg_mobile_print_verified_key($pdo, $taken['order'], $phoneEmployeeId);
+                if ($taken['reprint']) {
+                    // Already done; print_again checked it was the phone's own printed job.
+                    jg_store_ops_fulfillment_validate_key($taken['key']);
+                } else {
+                    jg_mobile_print_verified_key($pdo, $taken['order'], $phoneEmployeeId);
+                }
                 $actAs = null;
                 if (!hash_equals($phoneEmployeeId, $employeeId)) {
                     $actAs = ['id' => $phoneEmployeeId, 'name' => jg_store_ops_fulfillment_employee_name($pdo, $phoneEmployeeId)];
                 }
-                $handoff = jg_store_ops_scan_handoff_save($taken['order'], $taken['key'], $employeeId, $actAs);
+                $handoff = jg_store_ops_scan_handoff_save($taken['order'], $taken['key'], $employeeId, $actAs, $taken['reprint']);
                 if (!session_write_close()) {
                     throw new RuntimeException('Unable to save the order for printing.');
                 }
@@ -139,7 +146,7 @@ try {
                 throw $error;
             }
             jg_mobile_scanner_respond(['ok' => true, 'taken' => true, 'job' => $taken['job'], 'handoff' => $handoff,
-                'for_name' => $actAs['name'] ?? ''] + $taken['key']);
+                'for_name' => $actAs['name'] ?? '', 'reprint' => $taken['reprint']] + $taken['key']);
         case 'print_command':
             jg_mobile_scanner_respond(['ok' => true, 'sent' => jg_mobile_print_command(
                 $pdo, $employeeId, (int) ($payload['job'] ?? 0), (string) ($payload['command'] ?? ''), $now

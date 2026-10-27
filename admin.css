@@ -13844,3 +13844,38 @@ html[data-device="phone"] .admin-store-home .admin-store-command .admin-store-st
 :root[data-device="phone"] .admin-store-settings-modal :is([data-settings-tab="scanner"], [data-settings-tab="printer"]) { display: none; }
 .admin-settings-phone-note { margin: 18px 0 0; padding: 12px 14px; border: 1px dashed var(--admin-border); border-radius: 14px; font-size: 13px; color: var(--admin-muted); }
 .admin-store-settings-launch[hidden] { display: none !important; }
+
+/* "Printed <order> · Reprint" toast on the orders board. */
+.admin-print-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(460px, calc(100vw - 24px));
+  padding: 10px 10px 10px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-strong);
+  color: var(--admin-text);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, 24px);
+  opacity: 0;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.admin-print-toast[hidden] { display: none; }
+.admin-print-toast.is-visible { transform: translate(-50%, 0); opacity: 1; }
+.admin-print-toast-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 50%; background: var(--admin-success); color: #04130a; }
+.admin-print-toast[data-tone="info"] .admin-print-toast-icon { background: var(--admin-info); }
+.admin-print-toast[data-tone="error"] .admin-print-toast-icon { background: var(--admin-danger); }
+.admin-print-toast-icon svg, .admin-print-toast-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.admin-print-toast-copy { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.admin-print-toast-copy strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-print-toast-copy small { font-size: 12px; color: var(--admin-muted); }
+.admin-print-toast-copy small[hidden] { display: none; }
+.admin-print-toast-reprint { flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--admin-accent-primary); color: var(--admin-on-accent); font: inherit; font-weight: 800; cursor: pointer; }
+.admin-print-toast-reprint[hidden] { display: none; }
+.admin-print-toast-reprint:disabled { opacity: .6; }
+.admin-print-toast-close { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: transparent; color: var(--admin-muted); cursor: pointer; }

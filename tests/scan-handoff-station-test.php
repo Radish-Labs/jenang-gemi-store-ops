@@ -35,4 +35,18 @@ handoff_expect(['budi', 'Budi'], jg_store_ops_scan_handoff_actor(null, 'budi', '
 // Printing the same phone order again reuses its hand-off.
 handoff_expect($station, jg_store_ops_scan_handoff_save($order, $key, 'budi', ['id' => 'hani', 'name' => 'Hani']), 'A retry reuses the hand-off.');
 
+// A toast Reprint of a finished phone order gets its own reprint-only hand-off.
+$reprint = jg_store_ops_scan_handoff_save($order, $key, 'budi', ['id' => 'hani', 'name' => 'Hani'], true);
+handoff_expect(true, $reprint !== $station, 'A reprint hand-off is separate from the one that can complete the order.');
+$entry = jg_store_ops_scan_handoff_read($reprint, 'WAEXEC-1', 'budi');
+handoff_expect(true, !empty($entry['reprint']), 'It is marked as reprint-only.');
+handoff_expect(false, !empty(jg_store_ops_scan_handoff_read($station, 'WAEXEC-1', 'budi')['reprint']), 'The normal hand-off is not.');
+
+$orders = (string) file_get_contents(dirname(__DIR__) . '/api/orders-v2/index.php');
+handoff_expect(true, str_contains($orders, "!empty(\$entry['reprint']) && \$action !== 'reprint_label'"), 'A reprint hand-off can only reprint, never complete an order.');
+$mobile = (string) file_get_contents(dirname(__DIR__) . '/api/mobile-scanner/index.php');
+handoff_expect(true, str_contains($mobile, "unset(\$order['print_layout'], \$order['print_reprint'])"), 'A phone cannot mark its own print request as a reprint.');
+$print = (string) file_get_contents(dirname(__DIR__) . '/mobile-print.php');
+handoff_expect(true, str_contains($print, "(string) \$row['status'] !== 'printed' || (int) \$row['updated_at'] < \$now - 1800"), 'Reprint only the phone\'s own printed job, for 30 minutes.');
+
 echo "scan-handoff-station-test: ok\n";

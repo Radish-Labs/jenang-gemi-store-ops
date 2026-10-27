@@ -1325,6 +1325,9 @@ if ($method === 'POST') {
                 || ($entry['key']['source_account'] ?? '') !== $key['source_account']) {
                 jg_store_ops_orders_fail('This phone print has expired. Start the order again on the phone.', 409);
             }
+            if (!empty($entry['reprint']) && $action !== 'reprint_label') {
+                jg_store_ops_orders_fail('This label was sent only to be printed again.', 409);
+            }
             [$employeeId, $employeeName] = jg_store_ops_scan_handoff_actor($entry, $employeeId, $employeeName);
         }
 
@@ -1603,7 +1606,8 @@ if (isset($_GET['scan_handoff'])) {
         $row = jg_store_ops_fulfillment_fetch_order($pdo, $entry['key'], false);
         [$actorId] = jg_store_ops_scan_handoff_actor($entry, jg_store_ops_orders_current_employee_id(), '');
         $state = jg_store_ops_fulfillment_state_from_row($row, $actorId);
-        if (!$row || empty($state['claimedBy']) || empty($state['currentEmployeeCanWork'])) {
+        // A reprint is of an order that is already done.
+        if (empty($entry['reprint']) && (!$row || empty($state['claimedBy']) || empty($state['currentEmployeeCanWork']))) {
             jg_store_ops_orders_fail('This order is completed, released or assigned to another employee. Return to the board.', 409);
         }
         echo json_encode(['ok' => true, 'order' => array_merge($entry['order'], $state)], JSON_UNESCAPED_SLASHES);

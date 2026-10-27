@@ -144,6 +144,43 @@ function jg_mobile_print_request(PDO $pdo, string $employeeId, array $order, arr
     ];
 }
 
+/**
+ * Phone: "Reprint" from the toast after a print finished. Queues the same
+ * label (same layout) again, as a reprint. Only the phone's own job, and only
+ * for 30 minutes after it printed.
+ */
+function jg_mobile_print_again(PDO $pdo, string $employeeId, int $jobId, int $now): array
+{
+    $employeeId = jg_mobile_scanner_require_employee($employeeId);
+    $row = jg_mobile_print_job_row($pdo, $employeeId, $jobId);
+    if ($row === null || (string) $row['status'] !== 'printed' || (int) $row['updated_at'] < $now - 1800) {
+        throw new InvalidArgumentException('This label can no longer be reprinted from here. Use Reprint label on the board.');
+    }
+    $order = json_decode((string) ($row['order_json'] ?? ''), true);
+    if (!is_array($order)) {
+        throw new InvalidArgumentException('Order details were unreadable. Use Reprint label on the board.');
+    }
+    $order['print_reprint'] = true;
+    $encoded = json_encode($order, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $pdo->prepare(
+        'INSERT INTO store_ops_mobile_print_jobs_v1
+            (employee_id, order_id, source_platform, source_account, order_json, status, detail, created_at, updated_at)
+         VALUES (:employee_id, :order_id, :source_platform, :source_account, :order_json, \'queued\', \'\', :created_at, :updated_at)'
+    )->execute([
+        ':employee_id' => $employeeId,
+        ':order_id' => (string) $row['order_id'],
+        ':source_platform' => (string) $row['source_platform'],
+        ':source_account' => (string) $row['source_account'],
+        ':order_json' => $encoded,
+        ':created_at' => $now,
+        ':updated_at' => $now,
+    ]);
+    return [
+        'job' => (int) $pdo->lastInsertId(),
+        'station_online' => jg_mobile_print_station_online($pdo, $now),
+    ];
+}
+
 function jg_mobile_print_job_row(PDO $pdo, string $employeeId, int $jobId): ?array
 {
     $stmt = $pdo->prepare('SELECT * FROM store_ops_mobile_print_jobs_v1 WHERE id = :id AND employee_id = :employee_id LIMIT 1');
@@ -214,6 +251,7 @@ function jg_mobile_print_take(PDO $pdo, int $jobId, int $now): ?array
     return [
         'job' => $jobId,
         'employee_id' => (string) $row['employee_id'],
+        'reprint' => !empty($order['print_reprint']),
         'order' => $order,
         'key' => [
             'order_id' => (string) $row['order_id'],

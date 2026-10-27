@@ -67,6 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const requestedAccount = params.get('account') || '';
   const requestedPlatform = params.get('platform') || '';
   const isReprint = params.get('reprint') === '1';
+  // Reprint from the board's "Printed" toast: print straight away.
+  const autoReprint = isReprint && params.get('auto') === '1';
   const orders = readOrders();
   const storedOrder = orders.find((item) => String(item.id || '') === orderId) || null;
   const order = handoffOrder || storedOrder || (orderId ? {
@@ -95,7 +97,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const printHelper = window.JGStoreOpsPrintHelper || null;
   const helperSettings = printHelper ? printHelper.readSettings() : { enabled: false, printer: '', fit: false };
   const autoPrintedStorageKey = `jg-store-auto-printed:${orderId}`;
-  const printedHoldMs = 3000;
+  // No waiting on a finished label: the board shows a toast with Reprint.
+  const printedHoldMs = 300;
+  const lastPrintStorageKey = 'jg-store-last-print';
   let labelBlob = null;
   let helperAvailable = false;
   let helperRun = 0;
@@ -258,6 +262,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // The board shows "Printed <order> · Reprint" for this label.
+  const rememberLastPrint = (job = 0) => {
+    if (!order) return;
+    try {
+      window.localStorage.setItem(lastPrintStorageKey, JSON.stringify({
+        orderId: String(order.id || ''),
+        platform: String(order.platform || requestedPlatform || '').toLowerCase(),
+        account: sourceAccount,
+        package: packageNumber,
+        job,
+        at: Date.now()
+      }));
+    } catch (_error) {
+      // No toast this time; Reprint label on the board still works.
+    }
+  };
+
   const submitPrintCompletion = async () => {
     if (!order) throw new Error('Order is missing.');
     const timestamp = new Date().toISOString();
@@ -295,6 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.clearTimeout(timeout);
     }
     removeAcknowledgedCompletion(key);
+    if (!stationMode) rememberLastPrint();
     return new Date().toISOString();
   };
 
@@ -381,12 +403,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let frameBlurredAt = 0;
     let hiddenAt = 0;
 
+    // The print window closed: finish without asking. If the label didn't
+    // come out, the board's toast has Reprint.
     const confirmAfterPrint = () => {
       if (!printInProgress) return;
       window.setTimeout(() => {
-        if (printInProgress) {
-          showPrintConfirmationFallback();
-        }
+        if (printInProgress && !printClosing) closeConfirmedPrintTab();
       }, 120);
     };
     const addEvent = (target, eventName, listener) => {
@@ -653,8 +675,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       setError('The Store Ops print helper is not running on this computer, so Print opens the browser print dialog.');
       return;
     }
-    if (isReprint) return;
-    if (hasAutoPrinted()) {
+    if (isReprint && !stationMode && !autoReprint) return;
+    if (hasAutoPrinted() && !stationMode && !autoReprint) {
       setError('This label was already sent to the printer. Press Printed successfully if it came out, or Print to send it again.');
       offerManualConfirmation('Confirm print');
       return;
@@ -666,7 +688,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // straight away: through the helper when it runs, else the browser dialog.
   const startStationOrHelperPrint = async () => {
     await startHelperMode();
-    if (stationMode && !helperAvailable && !printInProgress) printLabel();
+    if ((stationMode || autoReprint) && !helperAvailable && !printInProgress) printLabel();
   };
 
   const platformLabel = (value) => {
@@ -822,12 +844,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           show('Printer needs attention', state.detail || 'Check the printer at the computer.', 'error', false, 'again');
           return false;
         case 'confirm':
-          show('Check the label', 'Did it print correctly? Answer here or on the computer.', 'info', false, 'confirm');
+          show('Printing on the computer…', 'It finishes by itself when the print window closes.', 'info', false, 'confirm');
           return false;
         case 'printed':
-          show('Printed', 'Order complete. Back to the orders…', 'ok');
+          show('Printed', 'Back to the orders…', 'ok');
           markPrinted(new Date().toISOString());
-          window.setTimeout(() => { window.location.href = '../'; }, 1800);
+          rememberLastPrint(job);
+          window.setTimeout(() => { window.location.href = '../'; }, 150);
           return true;
         case 'failed':
           // The computer may still fix the printer and retry, so keep watching.

@@ -34,7 +34,7 @@ function jg_store_ops_scan_handoff_prepare(mixed $order, array $key): array
  *
  * @param array{id:string,name:string}|null $actAs
  */
-function jg_store_ops_scan_handoff_save(array $order, array $key, string $employeeId, ?array $actAs = null): string
+function jg_store_ops_scan_handoff_save(array $order, array $key, string $employeeId, ?array $actAs = null, bool $reprint = false): string
 {
     $entries = $_SESSION['jg_scan_handoffs'] ?? [];
     $entries = array_filter(is_array($entries) ? $entries : [], static fn ($entry): bool =>
@@ -45,10 +45,15 @@ function jg_store_ops_scan_handoff_save(array $order, array $key, string $employ
     if ($actAs !== null) {
         $entry['act_as'] = ['id' => (string) $actAs['id'], 'name' => (string) $actAs['name']];
     }
+    if ($reprint) {
+        // A phone's "Reprint" of an order it already finished: may only reprint.
+        $entry['reprint'] = true;
+    }
     // Refreshing/restarting the same order should not evict other active tabs.
     foreach ($entries as $token => $existing) {
         if ($existing['key'] === $key && $existing['employee_id'] === $employeeId
-            && ($existing['act_as'] ?? null) === ($entry['act_as'] ?? null)) {
+            && ($existing['act_as'] ?? null) === ($entry['act_as'] ?? null)
+            && !empty($existing['reprint']) === $reprint) {
             $entries[$token] = $entry;
             $_SESSION['jg_scan_handoffs'] = $entries;
             return (string) $token;

@@ -54,7 +54,7 @@ async function openLabel({ fullStorage = false, automatic = false, replies = [ok
     const page = await openLabel({fullStorage:true,automatic});
     if (!automatic) await page.click();
     else {
-      const closeTimer = [...page.timers.values()].find(timer=>timer.ms===3000);
+      const closeTimer = [...page.timers.values()].find(timer=>timer.ms===300);
       assert.ok(closeTimer, 'confirmed automatic printing schedules closing even when browser storage is full');
       closeTimer.fn();
     }

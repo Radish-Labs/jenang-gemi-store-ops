@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (message.type === 'done') {
       report('printed');
       jobDone = true;
-      window.setTimeout(() => finishJob(), 1200);
+      window.setTimeout(() => finishJob(), 200);
       return;
     }
     const status = String(message.status || '');
@@ -149,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
       handoff: taken.handoff,
       station: '1'
     });
+    if (taken.reprint) query.set('reprint', '1');
     // Taps on the phone (Printed successfully / Print again) for this job.
     const thisJob = taken.job;
     (async () => {
