@@ -31,6 +31,7 @@ $mobileScannerJsVersion = (string) @filemtime(dirname(__DIR__) . '/mobile-scanne
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
     <link rel="stylesheet" href="../scan-checklist.css?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/scan-checklist.css')); ?>">
     <style>
+        html { -webkit-tap-highlight-color: transparent; }
         :root {
             --ms-bg: #0b0c0f;
             --ms-card: #16181d;
