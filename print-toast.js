@@ -1,10 +1,9 @@
 // After a label prints, the orders board shows "Printed <order>" with a
-// Reprint button for a short while, instead of asking whether it printed.
+// Reprint button instead of asking whether it printed. It stays until it is
+// closed or the next label replaces it.
 document.addEventListener('DOMContentLoaded', () => {
   const storageKey = 'jg-store-last-print';
-  const shownKey = 'jg-store-last-print-shown';
-  const showForMs = 15000;
-  const freshForMs = 2 * 60 * 1000;
+  const dismissedKey = 'jg-store-last-print-dismissed';
   const mobileEndpoint = '../api/mobile-scanner/';
 
   const toast = document.createElement('div');
@@ -24,20 +23,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const detail = toast.querySelector('[data-toast-detail]');
   const reprintButton = toast.querySelector('[data-toast-reprint]');
   let current = null;
-  let hideTimer = 0;
   let run = 0;
 
   const read = () => {
     try { return JSON.parse(window.localStorage.getItem(storageKey) || 'null'); } catch (_error) { return null; }
   };
   const hide = () => {
-    window.clearTimeout(hideTimer);
     toast.classList.remove('is-visible');
     window.setTimeout(() => { if (!toast.classList.contains('is-visible')) toast.hidden = true; }, 220);
   };
-  const hideLater = (ms = showForMs) => {
-    window.clearTimeout(hideTimer);
-    hideTimer = window.setTimeout(hide, ms);
+  // Closed by hand: don't bring it back after a reload.
+  const dismiss = () => {
+    run += 1;
+    try { window.localStorage.setItem(dismissedKey, String(current?.at || '')); } catch (_error) { /* Optional. */ }
+    hide();
   };
   const setText = (heading, text = '', tone = 'ok') => {
     title.textContent = heading;
@@ -47,11 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const show = (record) => {
-    if (!record || !record.orderId || Date.now() - Number(record.at || 0) > freshForMs) return;
+    if (!record || !record.orderId) return;
     try {
-      if (window.sessionStorage.getItem(shownKey) === String(record.at)) return;
-      window.sessionStorage.setItem(shownKey, String(record.at));
-    } catch (_error) { /* Shown again after a reload at worst. */ }
+      if (window.localStorage.getItem(dismissedKey) === String(record.at)) return;
+    } catch (_error) { /* Show it. */ }
     current = record;
     run += 1;
     setText(record.orderId, 'Printed. Didn\'t come out right?');
@@ -59,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reprintButton.disabled = false;
     toast.hidden = false;
     window.requestAnimationFrame(() => toast.classList.add('is-visible'));
-    hideLater();
   };
 
   // Phone: send the same job to the packing computer again and follow it.
@@ -88,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
         current = { ...record, job, at: Date.now() };
         reprintButton.hidden = false;
         reprintButton.disabled = false;
-        hideLater();
         return;
       }
       if (['failed', 'expired', 'cancelled', 'missing'].includes(status)) {
@@ -99,8 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
         : status === 'queued'
         ? (state.station_online ? 'Waiting for the computer…' : 'No computer is ready. Open Store Ops on the packing computer.')
         : 'Printing on the computer…', 'info');
-      hideLater(130000);
     }
+    if (thisRun === run) throw new Error('No answer from the computer yet. Check it, or press Reprint again.');
   };
 
   reprintButton.addEventListener('click', () => {
@@ -109,12 +105,10 @@ document.addEventListener('DOMContentLoaded', () => {
     reprintButton.disabled = true;
     if (Number(record.job) > 0) {
       reprintButton.hidden = true;
-      hideLater(130000);
       reprintFromPhone(record).catch((error) => {
         setText(`Not reprinted: ${record.orderId}`, error instanceof Error ? error.message : 'Try again.', 'error');
         reprintButton.hidden = false;
         reprintButton.disabled = false;
-        hideLater();
       });
       return;
     }
@@ -124,10 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (record.platform) query.set('platform', record.platform);
     if (record.package) query.set('package', record.package);
     const url = `./print-label/?${query}`;
+    reprintButton.disabled = false;
     if (!window.open(url, '_blank')) window.location.href = url;
-    hide();
   });
-  toast.querySelector('[data-toast-close]').addEventListener('click', () => { run += 1; hide(); });
+  toast.querySelector('[data-toast-close]').addEventListener('click', dismiss);
 
   show(read());
   window.addEventListener('storage', (event) => {
