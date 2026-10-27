@@ -79,6 +79,44 @@ function jg_store_ops_shell_employee(): array
     ];
 }
 
+/**
+ * Tapping your name opens this: who is signed in, Log out (to switch account)
+ * and, for admins, the employee profiles.
+ */
+function jg_store_ops_account_menu(array $employee, string $rootPrefix): void
+{
+    $name = htmlspecialchars((string) ($employee['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $id = htmlspecialchars((string) ($employee['id'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $initial = htmlspecialchars((string) ($employee['initial'] ?? 'O'), ENT_QUOTES, 'UTF-8');
+    $logout = htmlspecialchars($rootPrefix . 'logout/', ENT_QUOTES, 'UTF-8');
+    $script = htmlspecialchars($rootPrefix . 'account-menu.js?v=' . urlencode((string) @filemtime(__DIR__ . '/account-menu.js')), ENT_QUOTES, 'UTF-8');
+    ?>
+        <div class="admin-modal-shell admin-account-menu" data-account-menu hidden>
+            <div class="admin-modal-backdrop" data-close-account-menu></div>
+            <section class="admin-modal-card admin-account-card" role="dialog" aria-modal="true" aria-labelledby="account-menu-title">
+                <div class="admin-account-who">
+                    <span class="admin-store-profile-avatar" aria-hidden="true"><?php echo $initial; ?></span>
+                    <div>
+                        <small>Signed in as</small>
+                        <strong id="account-menu-title"><?php echo $name; ?></strong>
+                        <span><?php echo $id; ?></span>
+                    </div>
+                </div>
+                <a class="admin-primary-btn admin-account-logout" href="<?php echo $logout; ?>">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
+                    Log out
+                </a>
+                <p class="admin-account-note">Then choose any account to sign in. This device stays signed in for 30 days until you log out.</p>
+                <?php if (!empty($employee['can_manage'])): ?>
+                    <button type="button" class="admin-ghost-btn" data-open-employee-profiles>Manage employee profiles</button>
+                <?php endif; ?>
+                <button type="button" class="admin-ghost-btn" data-close-account-menu>Cancel</button>
+            </section>
+        </div>
+        <script src="<?php echo $script; ?>" defer></script>
+    <?php
+}
+
 function jg_store_ops_shell_open(array $options = []): void
 {
     $rootPrefix = (string) ($options['root_prefix'] ?? '../');
@@ -148,21 +186,13 @@ function jg_store_ops_shell_open(array $options = []): void
             </div>
 
             <footer class="admin-store-sidebar-footer">
-                <?php if ($employee['can_manage']): ?>
-                    <button type="button" class="admin-store-sidebar-profile" data-open-employee-profiles title="Employee profiles">
-                <?php else: ?>
-                    <div class="admin-store-sidebar-profile">
-                <?php endif; ?>
+                <button type="button" class="admin-store-sidebar-profile" data-open-account-menu aria-label="Account: log out or switch" title="Account">
                         <span class="admin-store-profile-avatar"><?php echo htmlspecialchars($employee['initial'], ENT_QUOTES, 'UTF-8'); ?></span>
                         <span class="admin-store-profile-copy">
                             <strong><?php echo htmlspecialchars($employee['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
                             <small>Operator</small>
                         </span>
-                <?php if ($employee['can_manage']): ?>
                     </button>
-                <?php else: ?>
-                    </div>
-                <?php endif; ?>
                 <button type="button" class="admin-store-nav-item admin-store-settings-launch" data-open-store-settings title="Settings">
                     <?php echo jg_store_ops_shell_svg('settings'); ?>
                     <span>Settings</span>
@@ -188,21 +218,13 @@ function jg_store_ops_shell_open(array $options = []): void
                     <?php if ($indicator !== ''): ?>
                         <div class="admin-view-indicator"><?php echo htmlspecialchars($indicator, ENT_QUOTES, 'UTF-8'); ?></div>
                     <?php endif; ?>
-                    <?php if ($employee['can_manage']): ?>
-                        <button type="button" class="admin-store-header-profile" data-open-employee-profiles aria-label="Open profile management">
-                    <?php else: ?>
-                        <div class="admin-store-header-profile">
-                    <?php endif; ?>
+                    <button type="button" class="admin-store-header-profile" data-open-account-menu aria-label="Account: log out or switch" title="Account">
                             <span class="admin-store-profile-avatar"><?php echo htmlspecialchars($employee['initial'], ENT_QUOTES, 'UTF-8'); ?></span>
                             <span class="admin-store-profile-copy">
                                 <strong><?php echo htmlspecialchars($employee['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                 <small>Operator</small>
                             </span>
-                    <?php if ($employee['can_manage']): ?>
                         </button>
-                    <?php else: ?>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </header>
     <?php
@@ -428,6 +450,7 @@ function jg_store_ops_shell_close(): void
             </section>
         </div>
 
+        <?php jg_store_ops_account_menu(jg_store_ops_shell_employee(), (string) ($GLOBALS['jg_store_ops_shell_root_prefix'] ?? '../')); ?>
         <div class="admin-modal-shell admin-employee-profiles-modal" data-employee-profiles-modal hidden>
             <div class="admin-modal-backdrop" data-close-employee-profiles></div>
             <section class="admin-modal-card admin-employee-profiles-card" role="dialog" aria-modal="true" aria-labelledby="employee-profiles-title">
@@ -441,7 +464,7 @@ function jg_store_ops_shell_close(): void
                 <form class="admin-employee-profile-form" data-employee-profile-form>
                     <label>
                         <span>Employee ID</span>
-                        <input class="admin-settings-input" name="id" type="text" autocomplete="username" placeholder="branch-vincent" required>
+                        <input class="admin-settings-input" name="id" type="text" autocomplete="off" placeholder="branch-vincent" required>
                     </label>
                     <label>
                         <span>Display name</span>

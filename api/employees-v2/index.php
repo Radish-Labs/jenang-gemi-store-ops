@@ -95,6 +95,8 @@ $displayName = trim((string) ($payload['display_name'] ?? ''));
 $employeeId = jg_store_ops_employees_v2_normalize_id((string) ($payload['id'] ?? ''));
 $pin = trim((string) ($payload['pin'] ?? ''));
 $active = !empty($payload['active']);
+// "create" never touches an existing account; only "update" (Edit) does.
+$mode = (string) ($payload['mode'] ?? 'create') === 'update' ? 'update' : 'create';
 
 if ($displayName === '') {
     jg_store_ops_employees_v2_fail('Employee display name is required.');
@@ -113,6 +115,26 @@ try {
     $stmt->execute([':id' => $employeeId]);
     $existing = $stmt->fetch();
     $isExisting = is_array($existing);
+
+    if ($mode === 'create' && $isExisting) {
+        jg_store_ops_employees_v2_fail(sprintf('An account with the ID "%s" already exists. Choose another ID, or use Edit on that account.', $employeeId));
+    }
+    if ($mode === 'update' && !$isExisting) {
+        jg_store_ops_employees_v2_fail('That account no longer exists. Reload and try again.');
+    }
+
+    // Two active accounts with the same name look identical on the sign-in
+    // screen. Turning one off is always allowed, so a duplicate can be retired.
+    $stmt = $pdo->prepare(
+        'SELECT id FROM store_ops_employees_v2
+         WHERE LOWER(TRIM(display_name)) = :display_name AND id <> :id AND active = 1
+         LIMIT 1'
+    );
+    $stmt->execute([':display_name' => strtolower($displayName), ':id' => $employeeId]);
+    $sameName = $active ? $stmt->fetchColumn() : false;
+    if ($sameName !== false) {
+        jg_store_ops_employees_v2_fail(sprintf('Another account ("%s") is already called %s. Use a different name.', (string) $sameName, $displayName));
+    }
 
     if (!$active && hash_equals($employeeId, jg_admin_current_employee_id())) {
         jg_store_ops_employees_v2_fail('You cannot deactivate the employee profile you are using.');
@@ -146,6 +168,8 @@ try {
                 ':active' => $active ? 1 : 0,
                 ':id' => $employeeId,
             ]);
+            // A new PIN signs this account out of every remembered device.
+            jg_admin_forget_employee_logins($pdo, $employeeId);
         } else {
             $stmt = $pdo->prepare(
                 'UPDATE store_ops_employees_v2

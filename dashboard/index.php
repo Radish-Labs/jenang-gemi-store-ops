@@ -88,21 +88,13 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
             </div>
 
             <footer class="admin-store-sidebar-footer">
-                <?php if ($currentEmployeeCanManageProfiles): ?>
-                    <button type="button" class="admin-store-sidebar-profile" data-open-employee-profiles title="Employee profiles">
-                <?php else: ?>
-                    <div class="admin-store-sidebar-profile">
-                <?php endif; ?>
+                <button type="button" class="admin-store-sidebar-profile" data-open-account-menu aria-label="Account: log out or switch" title="Account">
                         <span class="admin-store-profile-avatar"><?php echo htmlspecialchars($currentEmployeeInitial, ENT_QUOTES, 'UTF-8'); ?></span>
                         <span class="admin-store-profile-copy">
                             <strong><?php echo htmlspecialchars($currentEmployeeName, ENT_QUOTES, 'UTF-8'); ?></strong>
                             <small>Operator</small>
                         </span>
-                <?php if ($currentEmployeeCanManageProfiles): ?>
                     </button>
-                <?php else: ?>
-                    </div>
-                <?php endif; ?>
                 <button type="button" class="admin-store-nav-item admin-store-settings-launch" data-open-store-settings title="Settings">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
                     <span>Settings</span>
@@ -149,21 +141,13 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
                         <span class="admin-dropoff-filter-switch" aria-hidden="true"><span></span></span>
                     </button>
                     <div class="admin-view-indicator" data-board-clock>Live Queue</div>
-                    <?php if ($currentEmployeeCanManageProfiles): ?>
-                        <button type="button" class="admin-store-header-profile" data-open-employee-profiles aria-label="Open profile management">
-                    <?php else: ?>
-                        <div class="admin-store-header-profile">
-                    <?php endif; ?>
+                    <button type="button" class="admin-store-header-profile" data-open-account-menu aria-label="Account: log out or switch" title="Account">
                             <span class="admin-store-profile-avatar"><?php echo htmlspecialchars($currentEmployeeInitial, ENT_QUOTES, 'UTF-8'); ?></span>
                             <span class="admin-store-profile-copy">
                                 <strong data-board-employee><?php echo htmlspecialchars($currentEmployeeName, ENT_QUOTES, 'UTF-8'); ?></strong>
                                 <small>Operator</small>
                             </span>
-                    <?php if ($currentEmployeeCanManageProfiles): ?>
                         </button>
-                    <?php else: ?>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </header>
 
@@ -475,6 +459,7 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
             </form>
         </div>
 
+        <?php jg_store_ops_account_menu(['id' => $currentEmployeeId, 'name' => $currentEmployeeName, 'initial' => $currentEmployeeInitial, 'can_manage' => $currentEmployeeCanManageProfiles], '../'); ?>
         <?php if ($currentEmployeeCanManageProfiles): ?>
             <div class="admin-modal-shell admin-employee-profiles-modal" data-employee-profiles-modal hidden>
                 <div class="admin-modal-backdrop" data-close-employee-profiles></div>
@@ -489,7 +474,7 @@ $currentEmployeeInitial = strtoupper(substr(trim($currentEmployeeName), 0, 1)) ?
                     <form class="admin-employee-profile-form" data-employee-profile-form>
                         <label class="admin-reprint-field">
                             <span>Employee ID</span>
-                            <input class="admin-settings-input" name="id" autocomplete="username" placeholder="vincent" maxlength="64" required>
+                            <input class="admin-settings-input" name="id" autocomplete="off" placeholder="vincent" maxlength="64" required>
                         </label>
                         <label class="admin-reprint-field">
                             <span>Display Name</span>

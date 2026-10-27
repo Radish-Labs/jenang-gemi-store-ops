@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 const JG_ADMIN_CODE_HASH = 'ba7e42d060466c149e331452cc58339e64b62a3b61ed953e90f3ec274495f59d';
 const JG_ADMIN_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+// A device stays signed in for 30 days through a separate "remember" cookie,
+// even after the PHP session ends. Logging out or a PIN change ends it.
+const JG_ADMIN_REMEMBER_TTL_SECONDS = 30 * 24 * 60 * 60;
+const JG_ADMIN_REMEMBER_COOKIE = 'jg_admin_remember';
 
 require_once __DIR__ . '/store-ops-fulfillment-runtime.php';
 
@@ -69,11 +73,124 @@ function jg_admin_start_session(): void
     session_start();
 }
 
+function jg_admin_remember_cookie_options(int $expires): array
+{
+    return [
+        'expires' => $expires,
+        'path' => '/',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ];
+}
+
+function jg_admin_remember_table(PDO $pdo): void
+{
+    static $ready = false;
+    if ($ready) return;
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS store_ops_login_tokens_v1 (
+            token_hash CHAR(64) NOT NULL PRIMARY KEY,
+            employee_id VARCHAR(64) NOT NULL,
+            created_at INT NOT NULL,
+            expires_at INT NOT NULL,
+            KEY employee_id (employee_id)
+        )'
+    );
+    $ready = true;
+}
+
+function jg_admin_drop_remember_cookie(): void
+{
+    unset($_COOKIE[JG_ADMIN_REMEMBER_COOKIE]);
+    if (!headers_sent()) {
+        setcookie(JG_ADMIN_REMEMBER_COOKIE, '', jg_admin_remember_cookie_options(time() - 42000));
+    }
+}
+
+/** After a PIN login: keep this device signed in for 30 days. */
+function jg_admin_remember_login(string $employeeId): void
+{
+    if ($employeeId === '' || headers_sent()) return;
+    try {
+        $pdo = jg_store_ops_fulfillment_db();
+        jg_admin_remember_table($pdo);
+        $now = time();
+        $pdo->prepare('DELETE FROM store_ops_login_tokens_v1 WHERE expires_at < :now')->execute([':now' => $now]);
+        $token = bin2hex(random_bytes(32));
+        $pdo->prepare(
+            'INSERT INTO store_ops_login_tokens_v1 (token_hash, employee_id, created_at, expires_at)
+             VALUES (:token_hash, :employee_id, :created_at, :expires_at)'
+        )->execute([
+            ':token_hash' => hash('sha256', $token),
+            ':employee_id' => $employeeId,
+            ':created_at' => $now,
+            ':expires_at' => $now + JG_ADMIN_REMEMBER_TTL_SECONDS,
+        ]);
+        setcookie(JG_ADMIN_REMEMBER_COOKIE, $token, jg_admin_remember_cookie_options($now + JG_ADMIN_REMEMBER_TTL_SECONDS));
+    } catch (Throwable $error) {
+        // Without it the normal one-week session still works.
+        error_log('Store Ops remember login failed: ' . $error->getMessage());
+    }
+}
+
+/** No session, but a remembered device: sign it back in as that employee. */
+function jg_admin_restore_remembered_login(): bool
+{
+    $token = (string) ($_COOKIE[JG_ADMIN_REMEMBER_COOKIE] ?? '');
+    if ($token === '') return false;
+    if (preg_match('/^[a-f0-9]{64}$/', $token) !== 1) {
+        jg_admin_drop_remember_cookie();
+        return false;
+    }
+    try {
+        $pdo = jg_store_ops_fulfillment_db();
+        jg_admin_remember_table($pdo);
+        $stmt = $pdo->prepare(
+            'SELECT employee_id FROM store_ops_login_tokens_v1
+             WHERE token_hash = :token_hash AND expires_at > :now LIMIT 1'
+        );
+        $stmt->execute([':token_hash' => hash('sha256', $token), ':now' => time()]);
+        $employeeId = (string) ($stmt->fetchColumn() ?: '');
+    } catch (Throwable) {
+        // Database briefly unavailable: keep the cookie and try again later.
+        return false;
+    }
+    $profiles = $employeeId !== '' ? jg_admin_employee_profiles_for_login() : [];
+    if ($employeeId !== '' && jg_admin_employee_profiles_load_failed()) {
+        return false;
+    }
+    $employee = null;
+    foreach ($profiles as $profile) {
+        if (hash_equals((string) ($profile['id'] ?? ''), $employeeId)) {
+            $employee = $profile;
+            break;
+        }
+    }
+    if ($employee === null) {
+        // Expired, logged out, or the profile was turned off.
+        jg_admin_drop_remember_cookie();
+        return false;
+    }
+    if (!headers_sent()) {
+        session_regenerate_id(true);
+    }
+    jg_admin_set_authenticated_employee($employeeId, (string) ($employee['display_name'] ?? $employeeId));
+    return true;
+}
+
+/** Sign every device out of this employee (after a PIN change). */
+function jg_admin_forget_employee_logins(PDO $pdo, string $employeeId): void
+{
+    jg_admin_remember_table($pdo);
+    $pdo->prepare('DELETE FROM store_ops_login_tokens_v1 WHERE employee_id = :employee_id')->execute([':employee_id' => $employeeId]);
+}
+
 function jg_admin_is_authenticated(): bool
 {
     jg_admin_start_session();
     if (empty($_SESSION['jg_admin_authenticated'])) {
-        return false;
+        return jg_admin_restore_remembered_login();
     }
 
     $loginAt = trim((string) ($_SESSION['jg_admin_login_at'] ?? ''));
@@ -84,7 +201,7 @@ function jg_admin_is_authenticated(): bool
         $_SESSION['jg_admin_login_at'] = gmdate(DATE_ATOM);
     } elseif (time() - $loginTimestamp >= JG_ADMIN_SESSION_TTL_SECONDS) {
         jg_admin_clear_authenticated_session();
-        return false;
+        return jg_admin_restore_remembered_login();
     }
 
     $employeeId = trim((string) ($_SESSION['jg_admin_employee_id'] ?? ''));
@@ -284,6 +401,7 @@ function jg_admin_attempt_employee_login(string $employeeId, string $pin): bool
 
     session_regenerate_id(true);
     jg_admin_set_authenticated_employee((string) $employee['id'], (string) $employee['display_name']);
+    jg_admin_remember_login((string) $employee['id']);
     return true;
 }
 
@@ -312,6 +430,17 @@ function jg_admin_attempt_login(string $code): bool
 function jg_admin_logout(): void
 {
     jg_admin_start_session();
+    $token = (string) ($_COOKIE[JG_ADMIN_REMEMBER_COOKIE] ?? '');
+    if ($token !== '') {
+        try {
+            $pdo = jg_store_ops_fulfillment_db();
+            jg_admin_remember_table($pdo);
+            $pdo->prepare('DELETE FROM store_ops_login_tokens_v1 WHERE token_hash = :token_hash')->execute([':token_hash' => hash('sha256', $token)]);
+        } catch (Throwable) {
+            // The cookie is still removed below.
+        }
+    }
+    jg_admin_drop_remember_cookie();
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {

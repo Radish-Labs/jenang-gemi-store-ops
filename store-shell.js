@@ -631,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         action: 'save_employee',
+        mode: fields.id instanceof HTMLInputElement && fields.id.readOnly ? 'update' : 'create',
         id,
         display_name: displayName,
         pin,
