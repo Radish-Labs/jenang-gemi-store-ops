@@ -486,6 +486,27 @@ function jg_store_ops_walkins_sales_summary(PDO $pdo): array
 /**
  * @return array{invoice:array<string,mixed>,items:array<int,array<string,mixed>>}
  */
+/**
+ * The message staff see when a walk-in or WhatsApp invoice is refused. Every refusal names its
+ * reason (for example a stock shortage), so the cashier knows what to fix instead of guessing.
+ * The sale runs in one transaction, so nothing was saved or deducted when this is shown.
+ */
+function jg_store_ops_walkins_error_message(Throwable $throwable): string
+{
+    $reason = rtrim(trim($throwable->getMessage()), '.');
+    if ($throwable instanceof InvalidArgumentException) {
+        return $reason !== '' ? $reason . '.' : 'This sale was refused.';
+    }
+    if ($throwable instanceof PDOException) {
+        $code = trim((string) $throwable->getCode());
+        $reason = 'The database refused this sale' . ($code !== '' && $code !== '0' ? ' (' . $code . ')' : '')
+            . ': ' . ($reason !== '' ? $reason : 'no details were given');
+    } elseif ($reason === '') {
+        $reason = 'Walk Ins operation failed (' . get_class($throwable) . ')';
+    }
+    return $reason . '. Nothing was saved or deducted.';
+}
+
 function jg_store_ops_walkins_complete_sale(PDO $pdo, array $payload, string $createdBy): array
 {
     jg_store_ops_walkins_ensure_schema($pdo);

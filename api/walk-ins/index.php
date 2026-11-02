@@ -106,5 +106,7 @@ try {
     jg_store_ops_walkins_fail($exception->getMessage(), 422);
 } catch (Throwable $throwable) {
     error_log('Store Ops Walk Ins API failed: ' . $throwable->getMessage());
-    jg_store_ops_walkins_fail('Walk Ins operation failed.', 500);
+    // Stock shortages and unmapped SKUs arrive here as RuntimeException; say why instead of a bare failure.
+    $status = $throwable instanceof PDOException ? 500 : 422;
+    jg_store_ops_walkins_fail(jg_store_ops_walkins_error_message($throwable), $status);
 }

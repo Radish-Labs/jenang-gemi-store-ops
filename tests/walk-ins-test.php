@@ -120,4 +120,25 @@ $total = round($subtotal - $discountTotal, 2);
 walkins_expect(150000.0, $subtotal, 'Two SKU subtotal should be correct.');
 walkins_expect(20000.0, $discountTotal, 'Two SKU discounts should total Rp20,000.');
 walkins_expect(130000.0, $total, 'Two SKU final total should be Rp130,000.');
+// Refusals must always tell staff the reason.
+walkins_expect(
+    'Cannot subtract stock: 020300100201 needs 2 ASTRA base units but only 0 remain. Nothing was saved or deducted.',
+    jg_store_ops_walkins_error_message(new RuntimeException('Cannot subtract stock: 020300100201 needs 2 ASTRA base units but only 0 remain.')),
+    'Stock shortages must name the SKU and quantities.'
+);
+walkins_expect(
+    'Add at least one product before completing the sale.',
+    jg_store_ops_walkins_error_message(new InvalidArgumentException('Add at least one product before completing the sale.')),
+    'Validation messages must pass through unchanged.'
+);
+walkins_expect(
+    'The database refused this sale: Lock wait timeout exceeded. Nothing was saved or deducted.',
+    jg_store_ops_walkins_error_message(new PDOException('Lock wait timeout exceeded')),
+    'Database errors must include the database reason.'
+);
+walkins_expect(
+    'Walk Ins operation failed (RuntimeException). Nothing was saved or deducted.',
+    jg_store_ops_walkins_error_message(new RuntimeException('')),
+    'An error with no message must still name what failed.'
+);
 echo "walk-ins-test: ok\n";
